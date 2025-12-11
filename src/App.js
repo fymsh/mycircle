@@ -74,6 +74,7 @@ function App() {
   );
 }
 
+//#region AUTH PAGE
 function AuthPage({ setPage }) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -254,34 +255,40 @@ function AuthPage({ setPage }) {
     </div>
   );
 }
+//#endregion
 
+//#region CHAT PAGE
 function ChatPage({ user, setPage }) {
   const [friends, setFriends] = useState([]);
   const [selectedFriend, setSelectedFriend] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [showSidebar, setShowSidebar] = useState(true);
+  const [editingNicknameId, setEditingNicknameId] = useState(null);
+  const [nicknameInput, setNicknameInput] = useState('');
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
-    if (!user?.friends?.length) {
+    const friendsArr = Array.isArray(user?.friends) ? user.friends : [];
+    if (!friendsArr.length) {
       setFriends([]);
       return;
     }
+    const friendObjs = friendsArr.map(f => typeof f === 'string' ? { userId: f, nickname: "" } : f); // retro compatibility
     const friendsData = [];
     const unsubscribes = [];
-    user.friends.forEach((friendId) => {
-      const unsub = onSnapshot(doc(db, 'users', friendId), (doc) => {
-        if (doc.exists()) {
-          const friendData = { uid: friendId, ...doc.data() };
-          const existingIndex = friendsData.findIndex(f => f.uid === friendId);
+    friendObjs.forEach(({ userId, nickname }) => {
+      const unsub = onSnapshot(doc(db, 'users', userId), (docSnap) => {
+        if (docSnap.exists()) {
+          const friendData = { uid: userId, ...docSnap.data(), nickname };
+          const existingIndex = friendsData.findIndex(f => f.uid === userId);
           if (existingIndex >= 0) {
             friendsData[existingIndex] = friendData;
           } else {
             friendsData.push(friendData);
           }
           setFriends([...friendsData]);
-          if (selectedFriend?.uid === friendId) {
+          if (selectedFriend?.uid === userId) {
             setSelectedFriend(friendData);
           }
         }
@@ -289,6 +296,7 @@ function ChatPage({ user, setPage }) {
       unsubscribes.push(unsub);
     });
     return () => unsubscribes.forEach(unsub => unsub());
+    // eslint-disable-next-line
   }, [user?.friends, selectedFriend?.uid]);
 
   useEffect(() => {
@@ -362,6 +370,23 @@ function ChatPage({ user, setPage }) {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const startEditingNickname = (friendId, currentNickname) => {
+    setEditingNicknameId(friendId); 
+    setNicknameInput(currentNickname || "");
+  };
+
+  const applyNickname = async (friendUid) => {
+    const friendsArr = Array.isArray(user.friends) ? user.friends : [];
+    const newFriends = friendsArr.map(f => {
+      const obj = typeof f === 'string' ? { userId: f, nickname: "" } : f;
+      if (obj.userId === friendUid) return { ...obj, nickname: nicknameInput };
+      return obj;
+    });
+    await updateDoc(doc(db, 'users', user.uid), { friends: newFriends });
+    setEditingNicknameId(null);
+    setNicknameInput('');
+  };
+
   return (
     <div className="chat-container">
       <div className={`sidebar ${showSidebar ? 'show' : ''}`}>
@@ -421,7 +446,39 @@ function ChatPage({ user, setPage }) {
                     <span className={`status-dot ${friend.online ? 'online' : 'offline'}`}></span>
                   </div>
                   <div className="friend-info">
-                    <span className="friend-name">{friend.username}#{friend.tag}</span>
+                    {editingNicknameId === friend.uid ? (
+                      <div style={{display:'flex', alignItems:'center', marginBottom:"2px"}}>
+                        <input
+                          value={nicknameInput}
+                          onChange={e => setNicknameInput(e.target.value)}
+                          placeholder="Enter custom name"
+                          style={{fontSize:"0.92em"}}
+                        />
+                        <button
+                          style={{marginLeft:'2px', fontSize:'1em'}}
+                          onClick={e => { e.stopPropagation(); applyNickname(friend.uid); }}
+                        >✔</button>
+                        <button
+                          style={{marginLeft:'2px', fontSize:'1em'}}
+                          onClick={e => { e.stopPropagation(); setEditingNicknameId(null); }}
+                        >✗</button>
+                      </div>
+                    ) : (
+                      <>
+                        {friend.nickname &&
+                          <span className="friend-nickname">{friend.nickname}</span>
+                        }
+                        <span className="friend-name">{friend.username}#{friend.tag}</span>
+                        <button
+                          style={{
+                            marginLeft:"5px",fontSize:"0.85em",background:"none",border:"none",
+                            color:"#94a3b8",cursor:"pointer"
+                          }}
+                          title="Edit Nickname"
+                          onClick={e => { e.stopPropagation(); startEditingNickname(friend.uid, friend.nickname); }}
+                        >✏️</button>
+                      </>
+                    )}
                     <span className={`friend-status ${friend.online ? 'online' : 'offline'}`}>
                       {friend.online ? 'Online' : 'Offline'}
                     </span>
@@ -453,6 +510,7 @@ function ChatPage({ user, setPage }) {
                   <span className={`status-dot ${selectedFriend.online ? 'online' : 'offline'}`}></span>
                 </div>
                 <div>
+                  {selectedFriend.nickname && <div className="friend-nickname">{selectedFriend.nickname}</div>}
                   <h3>{selectedFriend.username}#{selectedFriend.tag}</h3>
                   <span className={`header-status ${selectedFriend.online ? 'online' : 'offline'}`}>
                     {selectedFriend.online ? '● Online' : '○ Offline'}
@@ -464,7 +522,13 @@ function ChatPage({ user, setPage }) {
               {messages.length === 0 ? (
                 <div className="no-messages">
                   <span className="wave-emoji">👋</span>
-                  <p>Say hello to {selectedFriend.username}#{selectedFriend.tag}!</p>
+                  <p>
+                    Say hello to{" "}
+                    {selectedFriend.nickname
+                      ? `${selectedFriend.nickname} (${selectedFriend.username}#${selectedFriend.tag})`
+                      : `${selectedFriend.username}#${selectedFriend.tag}`}
+                    !
+                  </p>
                 </div>
               ) : (
                 messages.map(msg => (
@@ -529,7 +593,9 @@ function ChatPage({ user, setPage }) {
     </div>
   );
 }
+//#endregion
 
+//#region ADD FRIEND PAGE
 function AddFriendPage({ user, setPage }) {
   const [searchUsername, setSearchUsername] = useState('');
   const [searchTag, setSearchTag] = useState('');
@@ -559,9 +625,11 @@ function AddFriendPage({ user, setPage }) {
         setError('User not found. Check the username+tag and try again.');
       } else {
         const foundUser = { uid: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+        // friends array now object with userId (retro-compatibility)
+        const myFriends = Array.isArray(user.friends) ? user.friends.map(f => typeof f === "string" ? { userId: f, nickname: "" } : f) : [];
         if (foundUser.uid === user.uid) {
           setError("That's you! Try searching for someone else.");
-        } else if (user.friends?.includes(foundUser.uid)) {
+        } else if (myFriends.some(f => f.userId === foundUser.uid)) {
           setError(`${foundUser.username}#${foundUser.tag} is already in your circle!`);
         } else {
           setSearchResult(foundUser);
@@ -577,13 +645,13 @@ function AddFriendPage({ user, setPage }) {
     if (!searchResult) return;
     setLoading(true);
     try {
-      const myFriends = user.friends || [];
+      const myFriends = Array.isArray(user.friends) ? user.friends.map(f => typeof f === "string" ? { userId: f, nickname: "" } : f) : [];
       await updateDoc(doc(db, 'users', user.uid), {
-        friends: [...myFriends, searchResult.uid]
+        friends: [...myFriends, { userId: searchResult.uid, nickname: "" }]
       });
-      const theirFriends = searchResult.friends || [];
+      const theirFriends = Array.isArray(searchResult.friends) ? searchResult.friends.map(f => typeof f === "string" ? { userId: f, nickname: "" } : f) : [];
       await updateDoc(doc(db, 'users', searchResult.uid), {
-        friends: [...theirFriends, user.uid]
+        friends: [...theirFriends, { userId: user.uid, nickname: "" }]
       });
       setSuccess(`${searchResult.username}#${searchResult.tag} added to your circle! 🎉`);
       setSearchResult(null);
@@ -678,7 +746,9 @@ function AddFriendPage({ user, setPage }) {
     </div>
   );
 }
+//#endregion
 
+//#region PROFILE PAGE
 function ProfilePage({ user, setPage }) {
   const formatDate = (timestamp) => {
     if (!timestamp?.toDate) return 'Unknown';
@@ -739,5 +809,6 @@ function ProfilePage({ user, setPage }) {
     </div>
   );
 }
+//#endregion
 
 export default App;
