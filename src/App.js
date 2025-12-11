@@ -27,11 +27,17 @@ function generateTagStr() {
   ).join('');
 }
 
+function getProfileUrl({ username, tag }) {
+  const loc = window.location.origin;
+  return `${loc}/profile?u=${encodeURIComponent(username)}&t=${encodeURIComponent(tag)}`;
+}
+
 function App() {
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState('auth');
+  const [profileLink, setProfileLink] = useState('');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -40,8 +46,6 @@ function App() {
         const unsubUser = onSnapshot(userRef, async (docu) => {
           if (docu.exists()) {
             let d = docu.data();
-
-            // Auto-assign tag if missing (except developer)
             if (!d.tag && !(d.username === 'fymm555' || d.email === 'fahimbovak@gmail.com')) {
               let unique = false, finalTag = "";
               for (let i = 0; i < 10 && !unique; i++) {
@@ -62,12 +66,12 @@ function App() {
                 d.tag = finalTag;
               }
             }
-
             setUserData({ uid: currentUser.uid, ...d });
+            setProfileLink(getProfileUrl({ username: d.username, tag: d.tag || '' }));
           }
         });
         setUser(currentUser);
-        setPage('chat');
+        setPage(window.location.pathname === '/profile' ? 'profile' : 'chat');
         return () => unsubUser();
       } else {
         setUser(null);
@@ -97,9 +101,9 @@ function App() {
   return (
     <div className="app">
       {page === 'auth' && <AuthPage setPage={setPage} />}
-      {page === 'chat' && <ChatPage user={userData} setPage={setPage} />}
+      {page === 'chat' && <ChatPage user={userData} setPage={setPage} profileLink={profileLink} />}
       {page === 'addFriend' && <AddFriendPage user={userData} setPage={setPage} />}
-      {page === 'profile' && <ProfilePage user={userData} setPage={setPage} />}
+      {page === 'profile' && <ProfilePage user={userData} setPage={setPage} profileLink={profileLink} />}
     </div>
   );
 }
@@ -283,7 +287,7 @@ function AuthPage({ setPage }) {
   );
 }
 
-function ChatPage({ user, setPage }) {
+function ChatPage({ user, setPage, profileLink }) {
   const [friends, setFriends] = useState([]);
   const [selectedChat, setSelectedChat] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -322,7 +326,6 @@ function ChatPage({ user, setPage }) {
       unsubscribes.push(unsub);
     });
     return () => unsubscribes.forEach(unsub => unsub());
-    // eslint-disable-next-line
   }, [user?.friends]);
 
   useEffect(() => {
@@ -527,6 +530,15 @@ function ChatPage({ user, setPage }) {
           <button className="btn-add-friend" style={{marginTop:"5px"}} onClick={openGroupModal}>
             <span className="btn-add-icon">👥</span>
             New Group
+          </button>
+          <button
+            className="btn-add-friend"
+            style={{marginTop:"5px",background:"#fff",color:"#2563eb"}}
+            onClick={() => window.navigator.clipboard.writeText(profileLink)}
+            title="Copy your profile link"
+          >
+            <span className="btn-add-icon">🔗</span>
+            Copy Profile Link
           </button>
         </div>
         <div className="friends-section">
@@ -822,8 +834,18 @@ function AddFriendPage({ user, setPage }) {
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const uparam = params.get("u");
+    const tparam = params.get("t");
+    if (uparam && tparam) {
+      setSearchUsername(uparam);
+      setSearchTag(tparam);
+    }
+  }, []);
+
   const searchUser = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setError('');
     setSuccess('');
     setSearchResult(null);
@@ -900,14 +922,14 @@ function AddFriendPage({ user, setPage }) {
             <input
               type="text"
               value={searchUsername}
-              onChange={(e) => setSearchUsername(e.target.value.replace(/\s/g, ''))}
+              onChange={e => setSearchUsername(e.target.value.replace(/\s/g, ''))}
               placeholder="Username"
               required
             />
             <input
               type="text"
               value={searchTag}
-              onChange={(e) => setSearchTag(e.target.value.toUpperCase())}
+              onChange={e => setSearchTag(e.target.value.toUpperCase())}
               placeholder="Tag (e.g. X1P5)"
               required
               maxLength={4}
@@ -956,14 +978,14 @@ function AddFriendPage({ user, setPage }) {
         )}
         <div className="add-friend-tip">
           <span>💡</span>
-          <p>Ask your friend for their exact username and tag</p>
+          <p>Ask your friend for their exact username and tag, or use their shareable profile link</p>
         </div>
       </div>
     </div>
   );
 }
 
-function ProfilePage({ user, setPage }) {
+function ProfilePage({ user, setPage, profileLink }) {
   const [usernameInput, setUsernameInput] = useState(user?.username || '');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -1066,6 +1088,15 @@ function ProfilePage({ user, setPage }) {
             {success && <div className="message-box success">{success}</div>}
           </form>
           <p className="profile-email">{user?.email}</p>
+          <button
+            className="btn-primary"
+            style={{marginTop:"10px",background:"#fff",color:"#2563eb"}}
+            onClick={() => window.navigator.clipboard.writeText(profileLink)}
+            title="Copy your shareable MYCircle profile link"
+          >
+            <span style={{marginRight:"5px"}}>🔗</span> Copy Your Profile Link
+          </button>
+          <div style={{color:"#64748b",fontSize:"0.97em",marginTop:"5px"}}>{profileLink}</div>
         </div>
         <div className="profile-stats">
           <div className="stat-card">
