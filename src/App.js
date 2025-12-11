@@ -317,6 +317,10 @@ function ChatPage({ user, setPage }) {
   const [newMembers, setNewMembers] = useState([]);
   const [showGroupMembersModal, setShowGroupMembersModal] = useState(false);
   const [selectedGroupMembers, setSelectedGroupMembers] = useState([]);
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [sidebarItems, setSidebarItems] = useState([]);
+  const [chatLastMessages, setChatLastMessages] = useState({});
+  const [messageSeenBy, setMessageSeenBy] = useState({});
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -358,8 +362,48 @@ function ChatPage({ user, setPage }) {
           ...doc.data()
         }));
         setMessages(msgs);
+        if (msgs.length > 0) {
+          const lastMsg = msgs[msgs.length - 1];
+          setChatLastMessages(prev => ({
+            ...prev,
+            [`group_${groupId}`]: {
+              text: lastMsg.text,
+              timestamp: lastMsg.createdAt,
+              senderId: lastMsg.senderId
+            }
+          }));
+          
+          const lastMessageId = msgs[msgs.length - 1].id;
+          const seenRef = collection(db, 'groups', groupId, 'messages', lastMessageId, 'seenBy');
+          const seenUnsub = onSnapshot(seenRef, (seenSnap) => {
+            const seenData = {};
+            seenSnap.forEach(doc => {
+              seenData[doc.id] = doc.data();
+            });
+            setMessageSeenBy(prev => ({
+              ...prev,
+              [lastMessageId]: seenData
+            }));
+          });
+          return () => seenUnsub();
+        }
       });
       updateDoc(doc(db, 'users', user.uid), { [`unread.group_${groupId}`]: 0 });
+      
+      const markAsSeen = async () => {
+        if (messages.length > 0) {
+          const lastMsg = messages[messages.length - 1];
+          if (lastMsg.senderId !== user.uid) {
+            const seenRef = doc(db, 'groups', groupId, 'messages', lastMsg.id, 'seenBy', user.uid);
+            await setDoc(seenRef, {
+              username: user.username,
+              seenAt: serverTimestamp()
+            }, { merge: true });
+          }
+        }
+      };
+      markAsSeen();
+      
       return () => unsubscribe();
     } else {
       const chatId = [user.uid, selectedChat.uid].sort().join('_');
@@ -371,8 +415,46 @@ function ChatPage({ user, setPage }) {
           ...doc.data()
         }));
         setMessages(msgs);
+        if (msgs.length > 0) {
+          const lastMsg = msgs[msgs.length - 1];
+          setChatLastMessages(prev => ({
+            ...prev,
+            [`chat_${selectedChat.uid}`]: {
+              text: lastMsg.text,
+              timestamp: lastMsg.createdAt,
+              senderId: lastMsg.senderId
+            }
+          }));
+          
+          const lastMessageId = msgs[msgs.length - 1].id;
+          const seenRef = doc(db, 'chats', chatId, 'messages', lastMessageId);
+          const seenUnsub = onSnapshot(seenRef, (docSnap) => {
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              setMessageSeenBy(prev => ({
+                ...prev,
+                [lastMessageId]: data.seenBy || []
+              }));
+            }
+          });
+          return () => seenUnsub();
+        }
       });
       updateDoc(doc(db, 'users', user.uid), { [`unread.chat_${selectedChat.uid}`]: 0 });
+      
+      const markAsSeen = async () => {
+        if (messages.length > 0) {
+          const lastMsg = messages[messages.length - 1];
+          if (lastMsg.senderId !== user.uid) {
+            const msgRef = doc(db, 'chats', chatId, 'messages', lastMsg.id);
+            await updateDoc(msgRef, {
+              seenBy: [...(lastMsg.seenBy || []), user.uid]
+            });
+          }
+        }
+      };
+      markAsSeen();
+      
       return () => unsubscribe();
     }
   }, [selectedChat, user]);
@@ -428,18 +510,54 @@ function ChatPage({ user, setPage }) {
     return () => unsub();
   }, [user?.uid]);
 
+  useEffect(() => {
+    const combinedItems = [
+      ...groups.map(g => ({
+        ...g,
+        label: g.name,
+        isGroup: true,
+        lastMessage: chatLastMessages[`group_${g.id}`]
+      })),
+      ...friends.map(f => ({
+        ...f,
+        label: f.nickname || `${f.username}#${f.tag}`,
+        isGroup: false,
+        lastMessage: chatLastMessages[`chat_${f.uid}`]
+      }))
+    ];
+    
+    const sortedItems = [...combinedItems].sort((a, b) => {
+      const timeA = a.lastMessage?.timestamp?.toDate?.() || new Date(0);
+      const timeB = b.lastMessage?.timestamp?.toDate?.() || new Date(0);
+      return timeB - timeA;
+    });
+    
+    setSidebarItems(sortedItems);
+  }, [friends, groups, chatLastMessages]);
+
   const sendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim() || !selectedChat) return;
+    
+    const messageData = {
+      text: newMessage,
+      senderId: user.uid,
+      senderName: user.username,
+      createdAt: serverTimestamp(),
+      reactions: {}
+    };
+    
+    if (replyingTo) {
+      messageData.replyTo = {
+        messageId: replyingTo.id,
+        text: replyingTo.text,
+        senderName: replyingTo.senderName
+      };
+    }
+    
     if (selectedChat.isGroup) {
       const messagesRef = collection(db, 'groups', selectedChat.id, 'messages');
-      await addDoc(messagesRef, {
-        text: newMessage,
-        senderId: user.uid,
-        senderName: user.username,
-        createdAt: serverTimestamp(),
-        reactions: {}
-      });
+      await addDoc(messagesRef, messageData);
       const groupId = selectedChat.id;
       groups.find(g => g.id === groupId)?.members?.forEach(async memberId => {
         if (memberId !== user.uid) {
@@ -452,13 +570,7 @@ function ChatPage({ user, setPage }) {
     } else {
       const chatId = [user.uid, selectedChat.uid].sort().join('_');
       const messagesRef = collection(db, 'chats', chatId, 'messages');
-      await addDoc(messagesRef, {
-        text: newMessage,
-        senderId: user.uid,
-        senderName: user.username,
-        createdAt: serverTimestamp(),
-        reactions: {}
-      });
+      await addDoc(messagesRef, messageData);
       const receiverUid = selectedChat.uid;
       if (receiverUid !== user.uid) {
         const receiverRef = doc(db, 'users', receiverUid);
@@ -468,6 +580,7 @@ function ChatPage({ user, setPage }) {
       }
     }
     setNewMessage('');
+    setReplyingTo(null);
   };
 
   const handleLogout = async () => {
@@ -484,6 +597,19 @@ function ChatPage({ user, setPage }) {
     if (!timestamp?.toDate) return '';
     const date = timestamp.toDate();
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatDateShort = (timestamp) => {
+    if (!timestamp?.toDate) return '';
+    const date = timestamp.toDate();
+    const now = new Date();
+    const diff = now - date;
+    const diffDays = Math.floor(diff / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString('en-MY', { month: 'short', day: 'numeric' });
   };
 
   const openGroupModal = () => {
@@ -582,20 +708,31 @@ function ChatPage({ user, setPage }) {
     }
   };
 
-  const sidebarItems = [
-    ...groups.map(g => ({
-      ...g,
-      label: g.name,
-      isGroup: true,
-      lastMessage: null
-    })),
-    ...friends.map(f => ({
-      ...f,
-      label: f.nickname || `${f.username}#${f.tag}`,
-      isGroup: false,
-      lastMessage: null
-    }))
-  ];
+  const getSeenStatus = (message) => {
+    if (!message || message.senderId !== user.uid) return null;
+    
+    if (selectedChat.isGroup) {
+      const seenData = messageSeenBy[message.id] || {};
+      const seenUsers = Object.keys(seenData);
+      if (seenUsers.length === 0) return null;
+      return `Seen by ${seenUsers.length} member${seenUsers.length > 1 ? 's' : ''}`;
+    } else {
+      const seenBy = message.seenBy || [];
+      if (seenBy.includes(selectedChat.uid)) {
+        return 'Seen';
+      }
+      return null;
+    }
+  };
+
+  const getGroupSeenUsers = (message) => {
+    if (!message || !selectedChat.isGroup) return [];
+    const seenData = messageSeenBy[message.id] || {};
+    return Object.entries(seenData).map(([userId, data]) => ({
+      userId,
+      username: data.username
+    }));
+  };
 
   return (
     <div className="chat-app">
@@ -632,7 +769,7 @@ function ChatPage({ user, setPage }) {
         </div>
         <div className="chats-section">
           <div className="section-header">
-            <h3>My Circles</h3>
+            <h3>Recent Chats</h3>
             <span className="badge">{sidebarItems.length}</span>
           </div>
           <div className="chats-list">
@@ -647,6 +784,12 @@ function ChatPage({ user, setPage }) {
                 let unreadCount = 0;
                 if (item.isGroup) unreadCount = unreadMap[`group_${item.id}`] || 0;
                 else unreadCount = unreadMap[`chat_${item.uid}`] || 0;
+                
+                const lastMsg = item.lastMessage?.text || 'No messages yet';
+                const lastMsgTime = item.lastMessage?.timestamp ? formatDateShort(item.lastMessage.timestamp) : '';
+                const isSender = item.lastMessage?.senderId === user.uid;
+                const displayText = lastMsg.length > 25 ? lastMsg.substring(0, 25) + '...' : lastMsg;
+                
                 return (
                   <div
                     key={item.isGroup ? `group-${item.id}` : item.uid}
@@ -656,7 +799,7 @@ function ChatPage({ user, setPage }) {
                     <div className="chat-avatar">
                       {item.isGroup ? (
                         <>
-                          <img src="/default-group.png" alt="" />
+                          <div className="group-avatar-emoji">👥</div>
                           <div className="status-indicator group"></div>
                         </>
                       ) : (
@@ -673,13 +816,19 @@ function ChatPage({ user, setPage }) {
                       {item.isGroup ? (
                         <div className="group-info">
                           <h4>{item.label}</h4>
-                          <p className="group-label">Group • {item.members?.length || 0} members</p>
+                          <p className="last-message">
+                            {isSender ? 'You: ' : ''}{displayText}
+                          </p>
+                          <p className="last-message-time">{lastMsgTime}</p>
                         </div>
                       ) : (
                         <>
                           {item.nickname && <span className="nickname">{item.nickname}</span>}
                           <h4>{item.username}#{item.tag}</h4>
-                          <p className="status-text">{item.online ? 'Online' : 'Offline'}</p>
+                          <p className="last-message">
+                            {isSender ? 'You: ' : ''}{displayText}
+                          </p>
+                          <div className="last-message-time">{lastMsgTime}</div>
                         </>
                       )}
                     </div>
@@ -705,11 +854,19 @@ function ChatPage({ user, setPage }) {
               <button className="menu-toggle" onClick={() => setSidebarOpen(true)}>
                 ☰
               </button>
-              <div className="chat-info">
+              <div 
+                className={`chat-info ${selectedChat.isGroup ? 'group-chat' : ''}`}
+                onClick={() => {
+                  if (!selectedChat.isGroup) {
+                    setPage(`viewProfile-${selectedChat.uid}`);
+                  }
+                }}
+                style={{ cursor: selectedChat.isGroup ? 'default' : 'pointer' }}
+              >
                 <div className="current-chat-avatar">
                   {selectedChat.isGroup ? (
                     <>
-                      <img src="/default-group.png" alt="" />
+                      <div className="group-avatar-emoji-large">👥</div>
                       <div className="current-status group"></div>
                     </>
                   ) : (
@@ -733,37 +890,49 @@ function ChatPage({ user, setPage }) {
                     </>
                   )}
                 </div>
-                {selectedChat.isGroup && (
-                  <div className="group-actions">
-                    <button className="secondary-button" onClick={() => viewGroupMembers(selectedChat.id)}>
-                      Members
-                    </button>
-                    {selectedChat.createdBy === user.uid && (
-                      <button className="secondary-button" onClick={() => openAddMembersModal(selectedChat.id)}>
-                        Add Members
-                      </button>
-                    )}
-                    {selectedChat.createdBy === user.uid ? (
-                      <button className="danger-button" onClick={() => deleteDoc(doc(db, 'groups', selectedChat.id))}>
-                        Delete
-                      </button>
-                    ) : (
-                      <button className="danger-button" onClick={async () => {
-                        const groupRef = doc(db, 'groups', selectedChat.id);
-                        const groupSnap = await getDoc(groupRef);
-                        if (groupSnap.exists()) {
-                          const currentMembers = groupSnap.data().members || [];
-                          const updatedMembers = currentMembers.filter(member => member !== user.uid);
-                          await updateDoc(groupRef, { members: updatedMembers });
-                          setSelectedChat(null);
-                        }
-                      }}>
-                        Leave
-                      </button>
-                    )}
-                  </div>
+                {!selectedChat.isGroup && (
+                  <button 
+                    className="profile-button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPage(`viewProfile-${selectedChat.uid}`);
+                    }}
+                    title="View Profile"
+                  >
+                    👤
+                  </button>
                 )}
               </div>
+              {selectedChat.isGroup && (
+                <div className="group-actions">
+                  <button className="secondary-button" onClick={() => viewGroupMembers(selectedChat.id)}>
+                    Members
+                  </button>
+                  {selectedChat.createdBy === user.uid && (
+                    <button className="secondary-button" onClick={() => openAddMembersModal(selectedChat.id)}>
+                      Add Members
+                    </button>
+                  )}
+                  {selectedChat.createdBy === user.uid ? (
+                    <button className="danger-button" onClick={() => deleteDoc(doc(db, 'groups', selectedChat.id))}>
+                      Delete
+                    </button>
+                  ) : (
+                    <button className="danger-button" onClick={async () => {
+                      const groupRef = doc(db, 'groups', selectedChat.id);
+                      const groupSnap = await getDoc(groupRef);
+                      if (groupSnap.exists()) {
+                        const currentMembers = groupSnap.data().members || [];
+                        const updatedMembers = currentMembers.filter(member => member !== user.uid);
+                        await updateDoc(groupRef, { members: updatedMembers });
+                        setSelectedChat(null);
+                      }
+                    }}>
+                      Leave
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
             <div className="messages-area">
               {messages.length === 0 ? (
@@ -776,6 +945,9 @@ function ChatPage({ user, setPage }) {
                 <div className="messages-list">
                   {messages.map(msg => {
                     const reactions = msg.reactions || {};
+                    const seenStatus = getSeenStatus(msg);
+                    const groupSeenUsers = getGroupSeenUsers(msg);
+                    
                     return (
                       <div
                         key={msg.id}
@@ -785,9 +957,29 @@ function ChatPage({ user, setPage }) {
                           {selectedChat.isGroup && msg.senderId !== user.uid && (
                             <div className="sender-name">{msg.senderName}</div>
                           )}
+                          {msg.replyTo && (
+                            <div className="reply-preview">
+                              <div className="reply-line"></div>
+                              <div className="reply-content">
+                                <span className="reply-sender">{msg.replyTo.senderName}</span>
+                                <p className="reply-text">{msg.replyTo.text}</p>
+                              </div>
+                            </div>
+                          )}
                           <div className="message-text">{msg.text}</div>
                           <div className="message-footer">
-                            <span className="message-time">{formatTime(msg.createdAt)}</span>
+                            <div className="message-info">
+                              <span className="message-time">{formatTime(msg.createdAt)}</span>
+                              {seenStatus && (
+                                <span className="seen-status">{seenStatus}</span>
+                              )}
+                              {groupSeenUsers.length > 0 && (
+                                <div className="group-seen-tooltip">
+                                  {groupSeenUsers.slice(0, 3).map(user => user.username).join(', ')}
+                                  {groupSeenUsers.length > 3 && ` and ${groupSeenUsers.length - 3} more`}
+                                </div>
+                              )}
+                            </div>
                             {Object.keys(reactions).length > 0 && (
                               <div className="reactions-bar">
                                 {Object.entries(reactions).map(([emoji, users]) => (
@@ -807,6 +999,7 @@ function ChatPage({ user, setPage }) {
                         </div>
                         <div className="message-actions">
                           <button className="react-button" onClick={() => setEmojiPicker({ id: msg.id })}>😊</button>
+                          <button className="reply-button" onClick={() => setReplyingTo(msg)}>↩️</button>
                           {emojiPicker.id === msg.id && (
                             <div className="emoji-picker">
                               {EMOJIS.map(emoji => (
@@ -831,6 +1024,15 @@ function ChatPage({ user, setPage }) {
                 </div>
               )}
             </div>
+            {replyingTo && (
+              <div className="reply-indicator">
+                <div className="reply-indicator-content">
+                  <span>Replying to {replyingTo.senderName}:</span>
+                  <p>{replyingTo.text.length > 50 ? replyingTo.text.substring(0, 50) + '...' : replyingTo.text}</p>
+                  <button className="cancel-reply" onClick={() => setReplyingTo(null)}>✕</button>
+                </div>
+              </div>
+            )}
             <form className="message-input-area" onSubmit={sendMessage}>
               <input
                 type="text"
@@ -1283,7 +1485,7 @@ function ProfilePage({ user, setPage, isOwnProfile }) {
   return (
     <div className="profile-page">
       <div className="page-header">
-        <button className="back-button" onClick={() => setPage('chat')}>← Back</button>
+        <button className="back-button" onClick={() => setPage('chat')}>← Back to Chat</button>
         <h1>Profile</h1>
       </div>
       <div className="profile-content">
@@ -1678,7 +1880,7 @@ function ViewProfilePage({ user, setPage, profileId }) {
   return (
     <div className="profile-page">
       <div className="page-header">
-        <button className="back-button" onClick={() => setPage('chat')}>← Back</button>
+        <button className="back-button" onClick={() => setPage('chat')}>← Back to Chat</button>
         <h1>Profile</h1>
       </div>
       <div className="profile-content">
