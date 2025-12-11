@@ -38,103 +38,55 @@ function App() {
   const [page, setPage] = useState('auth');
 
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (loading) {
-        console.log('Loading timeout triggered');
-        setLoading(false);
-        setPage('auth');
-      }
-    }, 5000);
-
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      clearTimeout(timeoutId);
-      
       if (currentUser) {
-        console.log('User authenticated:', currentUser.uid);
         const userRef = doc(db, 'users', currentUser.uid);
-        
-        try {
-          const unsubUser = onSnapshot(userRef, 
-            async (docu) => {
-              if (docu.exists()) {
-                let d = docu.data();
-                if (!d.tag) {
-                  let unique = false, finalTag = "";
-                  for (let i = 0; i < 10 && !unique; i++) {
-                    const candidate = generateTagStr();
-                    const tagQuery = query(
-                      collection(db, 'users'),
-                      where('usernameLower', '==', d.usernameLower),
-                      where('tag', '==', candidate)
-                    );
-                    const tagSnap = await getDocs(tagQuery);
-                    if (tagSnap.empty) {
-                      finalTag = candidate;
-                      unique = true;
-                    }
-                  }
-                  if (unique) {
-                    await updateDoc(userRef, { tag: finalTag });
-                    d.tag = finalTag;
-                  }
+        let unsubUser;
+        unsubUser = onSnapshot(userRef, async (docu) => {
+          if (docu.exists()) {
+            let d = docu.data();
+            if (!d.tag) {
+              let unique = false, finalTag = "";
+              for (let i = 0; i < 10 && !unique; i++) {
+                const candidate = generateTagStr();
+                const tagQuery = query(
+                  collection(db, 'users'),
+                  where('usernameLower', '==', d.usernameLower),
+                  where('tag', '==', candidate)
+                );
+                const tagSnap = await getDocs(tagQuery);
+                if (tagSnap.empty) {
+                  finalTag = candidate;
+                  unique = true;
                 }
-                setUserData({ uid: currentUser.uid, ...d });
-                setUser(currentUser);
-                setPage('chat');
-                setLoading(false);
-              } else {
-                console.log('User document does not exist');
-                await signOut(auth);
-                setUser(null);
-                setUserData(null);
-                setPage('auth');
-                setLoading(false);
               }
-            },
-            (error) => {
-              console.error('Firestore snapshot error:', error);
-              setUser(null);
-              setUserData(null);
-              setPage('auth');
-              setLoading(false);
+              if (unique) {
+                await updateDoc(userRef, { tag: finalTag });
+                d.tag = finalTag;
+              }
             }
-          );
-          
-          return () => {
-            if (unsubUser) unsubUser();
-          };
-        } catch (error) {
-          console.error('Error in user data fetch:', error);
-          setUser(null);
-          setUserData(null);
-          setPage('auth');
-          setLoading(false);
-        }
+            setUserData({ uid: currentUser.uid, ...d });
+          }
+        });
+        setUser(currentUser);
+        setPage('chat');
+        setLoading(false);
+        return () => unsubUser && unsubUser();
       } else {
-        console.log('No authenticated user');
         setUser(null);
         setUserData(null);
         setPage('auth');
         setLoading(false);
       }
-    }, (error) => {
-      console.error('Auth state change error:', error);
-      clearTimeout(timeoutId);
-      setLoading(false);
-      setPage('auth');
     });
-
-    return () => {
-      clearTimeout(timeoutId);
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, []);
 
   if (loading) {
     return (
       <div className="loading-screen">
         <div className="loading-spinner"></div>
-        <div className="loading-text">Loading MYCircle</div>
+        <div className="loading-text">Loading</div>
         <div className="loading-subtext">Connecting to your circle...</div>
       </div>
     );
@@ -143,9 +95,9 @@ function App() {
   return (
     <div className="app">
       {page === 'auth' && <AuthPage setPage={setPage} />}
-      {page === 'chat' && <ChatPage user={userData} setPage={setPage} />}
-      {page === 'addFriend' && <AddFriendPage user={userData} setPage={setPage} />}
-      {page === 'profile' && <ProfilePage user={userData} setPage={setPage} />}
+      {page === 'chat' && userData && <ChatPage user={userData} setPage={setPage} />}
+      {page === 'addFriend' && userData && <AddFriendPage user={userData} setPage={setPage} />}
+      {page === 'profile' && userData && <ProfilePage user={userData} setPage={setPage} />}
     </div>
   );
 }
@@ -224,103 +176,48 @@ function AuthPage({ setPage }) {
 
   return (
     <div className="auth-container">
-      <div className="auth-bg">
-        <div className="gradient-blob blob-1"></div>
-        <div className="gradient-blob blob-2"></div>
-        <div className="gradient-blob blob-3"></div>
-      </div>
-      
-      <div className="auth-card">
-        <div className="auth-header">
-          <div className="logo-wrapper">
-            <div className="logo-icon">
-              <div className="logo-inner">
-                <div className="logo-dot dot-1"></div>
-                <div className="logo-dot dot-2"></div>
-                <div className="logo-dot dot-3"></div>
-                <div className="logo-dot dot-4"></div>
-              </div>
-            </div>
-            <h1 className="logo-title">MYCircle</h1>
-            <p className="logo-subtitle">The circle that matters</p>
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit} className="auth-form">
-          {!isLogin && (
-            <div className="input-field">
-              <div className="input-icon">👤</div>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value.replace(/\s/g, ''))}
-                placeholder="Username"
-                required={!isLogin}
-                maxLength={20}
-                className="input-element"
-              />
-            </div>
-          )}
-          
-          <div className="input-field">
-            <div className="input-icon">✉️</div>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Email"
-              required
-              className="input-element"
-            />
-          </div>
-          
-          <div className="input-field">
-            <div className="input-icon">🔒</div>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Password"
-              required
-              minLength={6}
-              className="input-element"
-            />
-          </div>
-
-          {error && <div className="error-alert">{error}</div>}
-
-          <button type="submit" className="auth-button" disabled={loading}>
-            {loading ? (
-              <div className="button-loader"></div>
-            ) : (
-              <>
-                {isLogin ? 'Sign In' : 'Create Account'}
-                <span className="button-arrow">→</span>
-              </>
-            )}
-          </button>
-        </form>
-
-        <div className="auth-footer">
-          <div className="toggle-mode">
-            {isLogin ? "Don't have an account?" : "Already have an account?"}
-            <button 
-              className="toggle-button"
-              onClick={() => {
-                setIsLogin(!isLogin);
-                setError('');
-              }}
-            >
-              {isLogin ? 'Sign Up' : 'Sign In'}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="auth-watermark">
-        <div className="watermark-line"></div>
-        <span>Your private social space</span>
-        <div className="watermark-line"></div>
+      <form onSubmit={handleSubmit} className="auth-form">
+        {!isLogin && (
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value.replace(/\s/g, ''))}
+            placeholder="Username"
+            required={!isLogin}
+            maxLength={20}
+          />
+        )}
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Email"
+          required
+        />
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Password"
+          required
+          minLength={6}
+        />
+        {error && <div className="error-alert">{error}</div>}
+        <button type="submit" className="auth-button" disabled={loading}>
+          {loading ? '...' : (isLogin ? 'Sign In' : 'Create Account')}
+        </button>
+      </form>
+      <div className="auth-footer">
+        {isLogin ? "Don't have an account?" : "Already have an account?"}
+        <button 
+          className="toggle-button"
+          onClick={() => {
+            setIsLogin(!isLogin);
+            setError('');
+          }}
+        >
+          {isLogin ? 'Sign Up' : 'Sign In'}
+        </button>
       </div>
     </div>
   );
@@ -619,83 +516,70 @@ function ChatPage({ user, setPage }) {
   return (
     <div className="chat-app">
       <div className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+        <button className="close-sidebar" onClick={() => setSidebarOpen(false)}>✕</button>
         <div className="sidebar-header">
           <div className="app-brand">
-            <div className="brand-icon">
-              <div className="brand-dot"></div>
-              <div className="brand-dot"></div>
-              <div className="brand-dot"></div>
-              <div className="brand-dot"></div>
-            </div>
             <h2>MYCircle</h2>
           </div>
-          <button className="close-sidebar" onClick={() => setSidebarOpen(false)}>✕</button>
         </div>
-
         <div className="user-profile-card" onClick={() => setPage('profile')}>
           <img src={user?.avatar} alt="" className="profile-avatar" />
           <div className="profile-info">
-            <h3>{user?.username}</h3>
-            <p className="user-tag">#{user?.tag}</p>
+            <h3>{user?.username}#{user?.tag}</h3>
             <span className="online-badge">● Online</span>
           </div>
           <div className="profile-chevron">›</div>
         </div>
-
         <div className="sidebar-actions">
-          <button className="action-button" onClick={() => setPage('addFriend')}>
-            <span className="action-icon">+</span>
-            Add Friend
-          </button>
-          <button className="action-button secondary" onClick={openGroupModal}>
-            <span className="action-icon">👥</span>
-            New Group
-          </button>
+          <button className="action-button" onClick={() => setPage('addFriend')}>Add Friend</button>
+          <button className="action-button secondary" onClick={openGroupModal}>New Group</button>
         </div>
-
         <div className="chats-section">
           <div className="section-header">
             <h3>My Circles</h3>
             <span className="badge">{sidebarItems.length}</span>
           </div>
-          
           <div className="chats-list">
             {sidebarItems.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-icon">💬</div>
                 <p>No conversations yet</p>
-                <small>Start by adding friends or creating a group</small>
               </div>
             ) : (
               sidebarItems.map(item => {
                 let unreadCount = 0;
                 if (item.isGroup) unreadCount = unreadMap[`group_${item.id}`] || 0;
                 else unreadCount = unreadMap[`chat_${item.uid}`] || 0;
-                
                 return (
                   <div
                     key={item.isGroup ? `group-${item.id}` : item.uid}
                     className={`chat-item ${selectedChat && ((item.isGroup && selectedChat.id === item.id) || (!item.isGroup && selectedChat.uid === item.uid)) ? 'active' : ''}`}
                     onClick={() => setSelectedChat(item)}
                   >
-                    <div className="chat-avatar">
+                    <div className="chat-avatar" style={{position:"relative"}}>
                       <img src={item.avatar || "/default-group.png"} alt="" />
-                      {item.isGroup ? (
-                        <div className="status-indicator group"></div>
-                      ) : (
-                        <div className={`status-indicator ${item.online ? 'online' : 'offline'}`}></div>
-                      )}
                       {unreadCount > 0 && (
-                        <div className="unread-badge">{unreadCount > 99 ? '99+' : unreadCount}</div>
+                        <span style={{
+                          position:"absolute",
+                          right:"0",
+                          top:"0",
+                          background:"#ef4444",
+                          color:"#fff",
+                          borderRadius:"100px",
+                          fontSize:"0.85em",
+                          padding:"2px 6px",
+                          fontWeight:600,
+                          boxShadow:"0 2px 8px #fb0033",
+                          zIndex: 10
+                        }}>{unreadCount>99?"99+":unreadCount}</span>
                       )}
                     </div>
-                    
                     <div className="chat-details">
                       {item.isGroup ? (
-                        <div className="group-info">
+                        <>
                           <h4>{item.label}</h4>
                           <p className="group-label">Group</p>
-                        </div>
+                        </>
                       ) : (
                         <>
                           {editingNickname === item.uid ? (
@@ -745,13 +629,10 @@ function ChatPage({ user, setPage }) {
               <button className="menu-toggle" onClick={() => setSidebarOpen(true)}>
                 ☰
               </button>
-              
               <div className="chat-info">
                 <div className="current-chat-avatar">
                   <img src={selectedChat.avatar || "/default-group.png"} alt="" />
-                  <div className={`current-status ${selectedChat.isGroup ? 'group' : (selectedChat.online ? 'online' : 'offline')}`}></div>
                 </div>
-                
                 <div className="chat-meta">
                   {selectedChat.isGroup ? (
                     <>
@@ -766,7 +647,6 @@ function ChatPage({ user, setPage }) {
                     </>
                   )}
                 </div>
-                
                 {selectedChat.isGroup && (
                   <div className="group-actions">
                     {selectedChat.createdBy === user.uid ? (
@@ -778,7 +658,6 @@ function ChatPage({ user, setPage }) {
                 )}
               </div>
             </div>
-
             <div className="messages-area">
               {messages.length === 0 ? (
                 <div className="empty-chat">
@@ -845,7 +724,6 @@ function ChatPage({ user, setPage }) {
                 </div>
               )}
             </div>
-
             <form className="message-input-area" onSubmit={sendMessage}>
               <input
                 type="text"
@@ -868,19 +746,12 @@ function ChatPage({ user, setPage }) {
               ☰
             </button>
             <div className="welcome-screen">
-              <div className="welcome-icon">
-                <div className="welcome-dot"></div>
-                <div className="welcome-dot"></div>
-                <div className="welcome-dot"></div>
-                <div className="welcome-dot"></div>
-              </div>
               <h1>Welcome to MYCircle</h1>
               <p>Select a conversation or start a new one</p>
             </div>
           </div>
         )}
       </div>
-
       {showGroupModal && (
         <div className="modal-overlay">
           <div className="modal-content">
@@ -888,7 +759,6 @@ function ChatPage({ user, setPage }) {
               <h2>Create New Group</h2>
               <button onClick={() => setShowGroupModal(false)}>✕</button>
             </div>
-            
             <form onSubmit={createGroup}>
               <div className="modal-input">
                 <label>Group Name</label>
@@ -901,7 +771,6 @@ function ChatPage({ user, setPage }) {
                   required
                 />
               </div>
-              
               <div className="modal-input">
                 <label>Add Members</label>
                 <div className="members-selector">
@@ -923,14 +792,9 @@ function ChatPage({ user, setPage }) {
                     ))}
                 </div>
               </div>
-              
               <div className="modal-actions">
-                <button type="submit" className="primary-button" disabled={!groupName.trim() || groupMembers.length < 2}>
-                  Create Group
-                </button>
-                <button type="button" className="secondary-button" onClick={() => setShowGroupModal(false)}>
-                  Cancel
-                </button>
+                <button type="submit" className="primary-button" disabled={!groupName.trim() || groupMembers.length < 2}>Create Group</button>
+                <button type="button" className="secondary-button" onClick={() => setShowGroupModal(false)}>Cancel</button>
               </div>
             </form>
           </div>
@@ -1010,44 +874,34 @@ function AddFriendPage({ user, setPage }) {
   return (
     <div className="add-friend-page">
       <div className="page-header">
-        <button className="back-button" onClick={() => setPage('chat')}>
-          ← Back
-        </button>
+        <button className="back-button" onClick={() => setPage('chat')}>← Back</button>
         <h1>Add Friend</h1>
       </div>
-
       <div className="search-section">
         <div className="search-card">
-          <h2>Find Friends</h2>
-          <p>Search by username and tag</p>
-          
           <form onSubmit={searchUser} className="search-form">
-            <div className="search-inputs">
-              <input
-                type="text"
-                value={searchUsername}
-                onChange={e => setSearchUsername(e.target.value.replace(/\s/g, ''))}
-                placeholder="Username"
-                required
-              />
-              <input
-                type="text"
-                value={searchTag}
-                onChange={e => setSearchTag(e.target.value.toUpperCase())}
-                placeholder="TAG"
-                required
-                maxLength={4}
-                className="tag-input"
-              />
-              <button type="submit" className="search-button" disabled={searching}>
-                {searching ? 'Searching...' : 'Search'}
-              </button>
-            </div>
+            <input
+              type="text"
+              value={searchUsername}
+              onChange={e => setSearchUsername(e.target.value.replace(/\s/g, ''))}
+              placeholder="Username"
+              required
+            />
+            <input
+              type="text"
+              value={searchTag}
+              onChange={e => setSearchTag(e.target.value.toUpperCase())}
+              placeholder="TAG"
+              required
+              maxLength={4}
+              className="tag-input"
+            />
+            <button type="submit" className="search-button" disabled={searching}>
+              {searching ? 'Searching...' : 'Search'}
+            </button>
           </form>
-
           {error && <div className="alert error">{error}</div>}
           {success && <div className="alert success">{success}</div>}
-
           {searchResult && (
             <div className="result-card">
               <div className="result-header">
@@ -1069,11 +923,6 @@ function AddFriendPage({ user, setPage }) {
               </button>
             </div>
           )}
-
-          <div className="search-tip">
-            <span>💡</span>
-            <p>Ask your friend for their exact username and 4-digit tag</p>
-          </div>
         </div>
       </div>
     </div>
@@ -1093,15 +942,6 @@ function ProfilePage({ user, setPage }) {
     const days = (now - lastChanged) / (1000 * 60 * 60 * 24);
     return days >= 7;
   })();
-
-  const formatDate = (timestamp) => {
-    if (!timestamp?.toLocaleDateString) return 'Unknown';
-    return timestamp.toLocaleDateString('en-MY', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
 
   const handleChangeUsername = async (e) => {
     e.preventDefault();
@@ -1134,15 +974,21 @@ function ProfilePage({ user, setPage }) {
     setLoading(false);
   };
 
+  const formatDate = (timestamp) => {
+    if (!timestamp?.toLocaleDateString) return 'Unknown';
+    return timestamp.toLocaleDateString('en-MY', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
   return (
     <div className="profile-page">
       <div className="page-header">
-        <button className="back-button" onClick={() => setPage('chat')}>
-          ← Back
-        </button>
+        <button className="back-button" onClick={() => setPage('chat')}>← Back</button>
         <h1>Profile</h1>
       </div>
-
       <div className="profile-content">
         <div className="profile-card">
           <div className="profile-header">
@@ -1150,35 +996,28 @@ function ProfilePage({ user, setPage }) {
               <img src={user?.avatar} alt="" className="profile-avatar-large" />
               <div className="online-status">●</div>
             </div>
-            
             <form onSubmit={handleChangeUsername} className="username-form">
-              <div className="username-display">
-                <input
-                  type="text"
-                  value={usernameInput}
-                  onChange={e => setUsernameInput(e.target.value.replace(/\s/g, ""))}
-                  maxLength={20}
-                  disabled={!canChangeUsername || loading}
-                  className="username-input"
-                />
-                <span className="user-tag-large">#{user.tag}</span>
-              </div>
-              
+              <input
+                type="text"
+                value={usernameInput}
+                onChange={e => setUsernameInput(e.target.value.replace(/\s/g, ""))}
+                maxLength={20}
+                disabled={!canChangeUsername || loading}
+                className="username-input"
+              />
+              <span className="user-tag-large">#{user.tag}</span>
               <button type="submit" className="update-button" disabled={!canChangeUsername || loading}>
                 {loading ? 'Updating...' : 'Update Username'}
               </button>
-              
               {!canChangeUsername && (
                 <p className="cooldown-notice">
                   Next change available in {Math.ceil(7 - ((new Date() - lastChanged) / (1000 * 60 * 60 * 24)))} days
                 </p>
               )}
-              
               {error && <div className="alert error">{error}</div>}
               {success && <div className="alert success">{success}</div>}
             </form>
           </div>
-
           <div className="profile-stats-grid">
             <div className="stat-item">
               <div className="stat-number">{user?.friends?.length || 0}</div>
@@ -1195,7 +1034,6 @@ function ProfilePage({ user, setPage }) {
               <div className="stat-label">Joined</div>
             </div>
           </div>
-
           <div className="profile-details">
             <div className="detail-item">
               <span className="detail-icon">✉️</span>
@@ -1204,7 +1042,6 @@ function ProfilePage({ user, setPage }) {
                 <div className="detail-value">{user?.email}</div>
               </div>
             </div>
-            
             <div className="detail-item">
               <span className="detail-icon">📅</span>
               <div className="detail-content">
@@ -1212,7 +1049,6 @@ function ProfilePage({ user, setPage }) {
                 <div className="detail-value">{formatDate(user?.createdAt?.toDate?.())}</div>
               </div>
             </div>
-            
             <div className="detail-item">
               <span className="detail-icon">🆔</span>
               <div className="detail-content">
@@ -1221,7 +1057,6 @@ function ProfilePage({ user, setPage }) {
               </div>
             </div>
           </div>
-
           <div className="profile-footer">
             <p className="app-credit">MYCircle • The circle that matters.</p>
           </div>
