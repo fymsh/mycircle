@@ -24,6 +24,26 @@ import {
 import './App.css';
 
 const EMOJIS = ["❤️", "😂", "😮", "😢", "👏", "🔥", "👍", "🎉"];
+const BANNER_COLORS = [
+  'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+  'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+  'linear-gradient(135deg, #10b981 0%, #047857 100%)',
+  'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+  'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+  'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+  'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)',
+  'linear-gradient(135deg, #f97316 0%, #ea580c 100%)'
+];
+
+const CARD_COLORS = [
+  'var(--bg-card)',
+  '#1a1a2e',
+  '#16213e',
+  '#0f3460',
+  '#1e1e2e',
+  '#1a1b26',
+  '#1c1c2e'
+];
 
 function generateTagStr() {
   return Array.from({ length: 4 }, () =>
@@ -97,7 +117,14 @@ function App() {
       {page === 'auth' && <AuthPage setPage={setPage} />}
       {page === 'chat' && userData && <ChatPage user={userData} setPage={setPage} />}
       {page === 'addFriend' && userData && <AddFriendPage user={userData} setPage={setPage} />}
-      {page === 'profile' && userData && <ProfilePage user={userData} setPage={setPage} />}
+      {page === 'profile' && userData && <ProfilePage user={userData} setPage={setPage} isOwnProfile={true} />}
+      {page.startsWith('viewProfile-') && userData && (
+        <ViewProfilePage 
+          user={userData} 
+          setPage={setPage} 
+          profileId={page.split('-')[1]}
+        />
+      )}
     </div>
   );
 }
@@ -151,6 +178,9 @@ function AuthPage({ setPage }) {
           usernameLower: username.toLowerCase(),
           email,
           avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}${tag}`,
+          bio: '',
+          bannerColor: BANNER_COLORS[0],
+          cardColor: CARD_COLORS[0],
           createdAt: serverTimestamp(),
           lastUsernameChange: serverTimestamp(),
           online: true,
@@ -176,48 +206,95 @@ function AuthPage({ setPage }) {
 
   return (
     <div className="auth-container">
-      <form onSubmit={handleSubmit} className="auth-form">
-        {!isLogin && (
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value.replace(/\s/g, ''))}
-            placeholder="Username"
-            required={!isLogin}
-            maxLength={20}
-          />
-        )}
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
-          required
-        />
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
-          required
-          minLength={6}
-        />
-        {error && <div className="error-alert">{error}</div>}
-        <button type="submit" className="auth-button" disabled={loading}>
-          {loading ? '...' : (isLogin ? 'Sign In' : 'Create Account')}
-        </button>
-      </form>
-      <div className="auth-footer">
-        {isLogin ? "Don't have an account?" : "Already have an account?"}
-        <button 
-          className="toggle-button"
-          onClick={() => {
-            setIsLogin(!isLogin);
-            setError('');
-          }}
-        >
-          {isLogin ? 'Sign Up' : 'Sign In'}
-        </button>
+      <div className="auth-bg">
+        <div className="gradient-blob blob-1"></div>
+        <div className="gradient-blob blob-2"></div>
+        <div className="gradient-blob blob-3"></div>
+      </div>
+      <div className="auth-card">
+        <div className="auth-header">
+          <div className="logo-wrapper">
+            <div className="logo-icon">
+              <div className="logo-inner">
+                <div className="logo-dot dot-1"></div>
+                <div className="logo-dot dot-2"></div>
+                <div className="logo-dot dot-3"></div>
+                <div className="logo-dot dot-4"></div>
+              </div>
+            </div>
+            <h1 className="logo-title">MYCircle</h1>
+            <p className="logo-subtitle">The circle that matters</p>
+          </div>
+        </div>
+        <form onSubmit={handleSubmit} className="auth-form">
+          {!isLogin && (
+            <div className="input-field">
+              <span className="input-icon">👤</span>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value.replace(/\s/g, ''))}
+                placeholder="Username"
+                required={!isLogin}
+                maxLength={20}
+                className="input-element"
+              />
+            </div>
+          )}
+          <div className="input-field">
+            <span className="input-icon">✉️</span>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email"
+              required
+              className="input-element"
+            />
+          </div>
+          <div className="input-field">
+            <span className="input-icon">🔒</span>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              required
+              minLength={6}
+              className="input-element"
+            />
+          </div>
+          {error && <div className="error-alert">{error}</div>}
+          <button type="submit" className="auth-button" disabled={loading}>
+            {loading ? (
+              <div className="button-loader"></div>
+            ) : (
+              <>
+                {isLogin ? 'Sign In' : 'Create Account'}
+                <span className="button-arrow">→</span>
+              </>
+            )}
+          </button>
+        </form>
+        <div className="auth-footer">
+          <div className="toggle-mode">
+            {isLogin ? "Don't have an account?" : "Already have an account?"}
+            <button 
+              className="toggle-button"
+              onClick={() => {
+                setIsLogin(!isLogin);
+                setError('');
+              }}
+            >
+              {isLogin ? 'Sign Up' : 'Sign In'}
+            </button>
+          </div>
+        </div>
+      </div>
+      <div className="auth-watermark">
+        <div className="watermark-line"></div>
+        <span>MYCircle v1.0</span>
+        <div className="watermark-line"></div>
       </div>
     </div>
   );
@@ -229,14 +306,17 @@ function ChatPage({ user, setPage }) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [editingNickname, setEditingNickname] = useState(null);
-  const [nicknameInput, setNicknameInput] = useState('');
   const [groups, setGroups] = useState([]);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [groupName, setGroupName] = useState('');
   const [groupMembers, setGroupMembers] = useState([]);
   const [emojiPicker, setEmojiPicker] = useState({ id: null });
   const [unreadMap, setUnreadMap] = useState({});
+  const [showAddMembersModal, setShowAddMembersModal] = useState(false);
+  const [selectedGroupForMembers, setSelectedGroupForMembers] = useState(null);
+  const [newMembers, setNewMembers] = useState([]);
+  const [showGroupMembersModal, setShowGroupMembersModal] = useState(false);
+  const [selectedGroupMembers, setSelectedGroupMembers] = useState([]);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -406,18 +486,6 @@ function ChatPage({ user, setPage }) {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const updateNickname = async (friendUid) => {
-    const friendsArr = Array.isArray(user.friends) ? user.friends : [];
-    const newFriends = friendsArr.map(f => {
-      const obj = typeof f === 'string' ? { userId: f, nickname: "" } : f;
-      if (obj.userId === friendUid) return { ...obj, nickname: nicknameInput };
-      return obj;
-    });
-    await updateDoc(doc(db, 'users', user.uid), { friends: newFriends });
-    setEditingNickname(null);
-    setNicknameInput('');
-  };
-
   const openGroupModal = () => {
     setShowGroupModal(true);
     setGroupName('');
@@ -470,46 +538,62 @@ function ChatPage({ user, setPage }) {
     await updateDoc(msgDoc, { reactions: updatedReactions });
   };
 
-  const removeFriend = async (friendUid) => {
-    const myFriends = Array.isArray(user.friends) ? user.friends.map(f => typeof f === "string" ? { userId: f, nickname: "" } : f) : [];
-    await updateDoc(doc(db, 'users', user.uid), {
-      friends: myFriends.filter(f => f.userId !== friendUid)
-    });
-    const friendDoc = doc(db, 'users', friendUid);
-    const friendSnap = await getDocs(query(collection(db, 'users'), where("__name__", "==", friendUid)));
-    if (!friendSnap.empty && friendSnap.docs[0].data().friends) {
-      const theirFriends = friendSnap.docs[0].data().friends.map(f => typeof f === "string" ? { userId: f, nickname: "" } : f);
-      await updateDoc(friendDoc, {
-        friends: theirFriends.filter(f => f.userId !== user.uid)
-      });
+  const openAddMembersModal = (groupId) => {
+    setSelectedGroupForMembers(groupId);
+    setNewMembers([]);
+    setShowAddMembersModal(true);
+  };
+
+  const toggleNewMember = (uid) => {
+    setNewMembers((members) => 
+      members.includes(uid) ? members.filter(m => m !== uid) : [...members, uid]
+    );
+  };
+
+  const addMembersToGroup = async () => {
+    if (!selectedGroupForMembers || newMembers.length === 0) return;
+    const groupRef = doc(db, 'groups', selectedGroupForMembers);
+    const groupSnap = await getDoc(groupRef);
+    if (groupSnap.exists()) {
+      const currentMembers = groupSnap.data().members || [];
+      const updatedMembers = [...currentMembers, ...newMembers.filter(uid => !currentMembers.includes(uid))];
+      await updateDoc(groupRef, { members: updatedMembers });
     }
+    setShowAddMembersModal(false);
+    setSelectedGroupForMembers(null);
+    setNewMembers([]);
   };
 
-  const deleteGroup = async (groupId) => {
-    await deleteDoc(doc(db, 'groups', groupId));
-    setSelectedChat(null);
-  };
-
-  const leaveGroup = async (groupId) => {
-    const currentGroup = groups.find(g => g.id === groupId);
-    if (!currentGroup) return;
-    const newMembers = currentGroup.members.filter(uid => uid !== user.uid);
-    await updateDoc(doc(db, 'groups', groupId), {
-      members: newMembers
-    });
-    setSelectedChat(null);
+  const viewGroupMembers = async (groupId) => {
+    const groupRef = doc(db, 'groups', groupId);
+    const groupSnap = await getDoc(groupRef);
+    if (groupSnap.exists()) {
+      const members = groupSnap.data().members || [];
+      const membersData = [];
+      for (const memberId of members) {
+        const userRef = doc(db, 'users', memberId);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          membersData.push({ uid: memberId, ...userSnap.data() });
+        }
+      }
+      setSelectedGroupMembers(membersData);
+      setShowGroupMembersModal(true);
+    }
   };
 
   const sidebarItems = [
     ...groups.map(g => ({
       ...g,
       label: g.name,
-      isGroup: true
+      isGroup: true,
+      lastMessage: null
     })),
     ...friends.map(f => ({
       ...f,
       label: f.nickname || `${f.username}#${f.tag}`,
-      isGroup: false
+      isGroup: false,
+      lastMessage: null
     }))
   ];
 
@@ -519,6 +603,12 @@ function ChatPage({ user, setPage }) {
         <button className="close-sidebar" onClick={() => setSidebarOpen(false)}>✕</button>
         <div className="sidebar-header">
           <div className="app-brand">
+            <div className="brand-icon">
+              <div className="brand-dot"></div>
+              <div className="brand-dot"></div>
+              <div className="brand-dot"></div>
+              <div className="brand-dot"></div>
+            </div>
             <h2>MYCircle</h2>
           </div>
         </div>
@@ -526,13 +616,19 @@ function ChatPage({ user, setPage }) {
           <img src={user?.avatar} alt="" className="profile-avatar" />
           <div className="profile-info">
             <h3>{user?.username}#{user?.tag}</h3>
-            <span className="online-badge">● Online</span>
+            <div className="online-badge">● Online</div>
           </div>
           <div className="profile-chevron">›</div>
         </div>
         <div className="sidebar-actions">
-          <button className="action-button" onClick={() => setPage('addFriend')}>Add Friend</button>
-          <button className="action-button secondary" onClick={openGroupModal}>New Group</button>
+          <button className="action-button" onClick={() => setPage('addFriend')}>
+            <span className="action-icon">👤</span>
+            Add Friend
+          </button>
+          <button className="action-button secondary" onClick={openGroupModal}>
+            <span className="action-icon">👥</span>
+            New Group
+          </button>
         </div>
         <div className="chats-section">
           <div className="section-header">
@@ -544,6 +640,7 @@ function ChatPage({ user, setPage }) {
               <div className="empty-state">
                 <div className="empty-icon">💬</div>
                 <p>No conversations yet</p>
+                <small>Add friends or create a group to start chatting</small>
               </div>
             ) : (
               sidebarItems.map(item => {
@@ -556,53 +653,32 @@ function ChatPage({ user, setPage }) {
                     className={`chat-item ${selectedChat && ((item.isGroup && selectedChat.id === item.id) || (!item.isGroup && selectedChat.uid === item.uid)) ? 'active' : ''}`}
                     onClick={() => setSelectedChat(item)}
                   >
-                    <div className="chat-avatar" style={{position:"relative"}}>
-                      <img src={item.avatar || "/default-group.png"} alt="" />
+                    <div className="chat-avatar">
+                      {item.isGroup ? (
+                        <>
+                          <img src="/default-group.png" alt="" />
+                          <div className="status-indicator group"></div>
+                        </>
+                      ) : (
+                        <>
+                          <img src={item.avatar} alt="" />
+                          <div className={`status-indicator ${item.online ? 'online' : 'offline'}`}></div>
+                        </>
+                      )}
                       {unreadCount > 0 && (
-                        <span style={{
-                          position:"absolute",
-                          right:"0",
-                          top:"0",
-                          background:"#ef4444",
-                          color:"#fff",
-                          borderRadius:"100px",
-                          fontSize:"0.85em",
-                          padding:"2px 6px",
-                          fontWeight:600,
-                          boxShadow:"0 2px 8px #fb0033",
-                          zIndex: 10
-                        }}>{unreadCount>99?"99+":unreadCount}</span>
+                        <div className="unread-badge">{unreadCount > 99 ? '99+' : unreadCount}</div>
                       )}
                     </div>
                     <div className="chat-details">
                       {item.isGroup ? (
-                        <>
+                        <div className="group-info">
                           <h4>{item.label}</h4>
-                          <p className="group-label">Group</p>
-                        </>
+                          <p className="group-label">Group • {item.members?.length || 0} members</p>
+                        </div>
                       ) : (
                         <>
-                          {editingNickname === item.uid ? (
-                            <div className="nickname-edit">
-                              <input
-                                value={nicknameInput}
-                                onChange={e => setNicknameInput(e.target.value)}
-                                placeholder="Custom name"
-                                autoFocus
-                              />
-                              <button onClick={() => updateNickname(item.uid)}>✓</button>
-                              <button onClick={() => setEditingNickname(null)}>✕</button>
-                            </div>
-                          ) : (
-                            <div className="friend-info">
-                              {item.nickname && <span className="nickname">{item.nickname}</span>}
-                              <h4>{item.username}#{item.tag}</h4>
-                              <div className="friend-actions">
-                                <button onClick={(e) => { e.stopPropagation(); setEditingNickname(item.uid); setNicknameInput(item.nickname || ""); }}>✏️</button>
-                                <button onClick={(e) => { e.stopPropagation(); removeFriend(item.uid); }}>🗑️</button>
-                              </div>
-                            </div>
-                          )}
+                          {item.nickname && <span className="nickname">{item.nickname}</span>}
+                          <h4>{item.username}#{item.tag}</h4>
                           <p className="status-text">{item.online ? 'Online' : 'Offline'}</p>
                         </>
                       )}
@@ -631,7 +707,17 @@ function ChatPage({ user, setPage }) {
               </button>
               <div className="chat-info">
                 <div className="current-chat-avatar">
-                  <img src={selectedChat.avatar || "/default-group.png"} alt="" />
+                  {selectedChat.isGroup ? (
+                    <>
+                      <img src="/default-group.png" alt="" />
+                      <div className="current-status group"></div>
+                    </>
+                  ) : (
+                    <>
+                      <img src={selectedChat.avatar} alt="" />
+                      <div className={`current-status ${selectedChat.online ? 'online' : 'offline'}`}></div>
+                    </>
+                  )}
                 </div>
                 <div className="chat-meta">
                   {selectedChat.isGroup ? (
@@ -649,10 +735,31 @@ function ChatPage({ user, setPage }) {
                 </div>
                 {selectedChat.isGroup && (
                   <div className="group-actions">
+                    <button className="secondary-button" onClick={() => viewGroupMembers(selectedChat.id)}>
+                      Members
+                    </button>
+                    {selectedChat.createdBy === user.uid && (
+                      <button className="secondary-button" onClick={() => openAddMembersModal(selectedChat.id)}>
+                        Add Members
+                      </button>
+                    )}
                     {selectedChat.createdBy === user.uid ? (
-                      <button className="danger-button" onClick={() => deleteGroup(selectedChat.id)}>Delete</button>
+                      <button className="danger-button" onClick={() => deleteDoc(doc(db, 'groups', selectedChat.id))}>
+                        Delete
+                      </button>
                     ) : (
-                      <button className="secondary-button" onClick={() => leaveGroup(selectedChat.id)}>Leave</button>
+                      <button className="danger-button" onClick={async () => {
+                        const groupRef = doc(db, 'groups', selectedChat.id);
+                        const groupSnap = await getDoc(groupRef);
+                        if (groupSnap.exists()) {
+                          const currentMembers = groupSnap.data().members || [];
+                          const updatedMembers = currentMembers.filter(member => member !== user.uid);
+                          await updateDoc(groupRef, { members: updatedMembers });
+                          setSelectedChat(null);
+                        }
+                      }}>
+                        Leave
+                      </button>
                     )}
                   </div>
                 )}
@@ -746,12 +853,19 @@ function ChatPage({ user, setPage }) {
               ☰
             </button>
             <div className="welcome-screen">
+              <div className="welcome-icon">
+                <div className="welcome-dot"></div>
+                <div className="welcome-dot"></div>
+                <div className="welcome-dot"></div>
+                <div className="welcome-dot"></div>
+              </div>
               <h1>Welcome to MYCircle</h1>
               <p>Select a conversation or start a new one</p>
             </div>
           </div>
         )}
       </div>
+
       {showGroupModal && (
         <div className="modal-overlay">
           <div className="modal-content">
@@ -793,10 +907,84 @@ function ChatPage({ user, setPage }) {
                 </div>
               </div>
               <div className="modal-actions">
-                <button type="submit" className="primary-button" disabled={!groupName.trim() || groupMembers.length < 2}>Create Group</button>
-                <button type="button" className="secondary-button" onClick={() => setShowGroupModal(false)}>Cancel</button>
+                <button type="submit" className="primary-button" disabled={!groupName.trim() || groupMembers.length < 2}>
+                  Create Group
+                </button>
+                <button type="button" className="secondary-button" onClick={() => setShowGroupModal(false)}>
+                  Cancel
+                </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showAddMembersModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>Add Members to Group</h2>
+              <button onClick={() => setShowAddMembersModal(false)}>✕</button>
+            </div>
+            <div className="modal-input">
+              <label>Select Friends to Add</label>
+              <div className="members-selector">
+                {friends
+                  .filter(f => f.uid !== user.uid)
+                  .map(f => (
+                    <div key={f.uid} className="member-option">
+                      <input
+                        type="checkbox"
+                        checked={newMembers.includes(f.uid)}
+                        onChange={() => toggleNewMember(f.uid)}
+                        id={`new-member-${f.uid}`}
+                      />
+                      <label htmlFor={`new-member-${f.uid}`}>
+                        <img src={f.avatar} alt="" className="member-avatar" />
+                        <span>{f.nickname ? f.nickname : `${f.username}#${f.tag}`}</span>
+                      </label>
+                    </div>
+                  ))}
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="primary-button" onClick={addMembersToGroup} disabled={newMembers.length === 0}>
+                Add Selected Members
+              </button>
+              <button type="button" className="secondary-button" onClick={() => setShowAddMembersModal(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showGroupMembersModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>Group Members</h2>
+              <button onClick={() => setShowGroupMembersModal(false)}>✕</button>
+            </div>
+            <div className="members-list">
+              {selectedGroupMembers.map(member => (
+                <div key={member.uid} className="member-item" onClick={() => {
+                  setShowGroupMembersModal(false);
+                  setPage(`viewProfile-${member.uid}`);
+                }}>
+                  <img src={member.avatar} alt="" className="member-avatar" />
+                  <div className="member-info">
+                    <h4>{member.username}#{member.tag}</h4>
+                    <p className={member.online ? 'online' : 'offline'}>
+                      {member.online ? '● Online' : '○ Offline'}
+                    </p>
+                  </div>
+                  {member.uid === selectedChat?.createdBy && (
+                    <span className="admin-badge">Admin</span>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -879,36 +1067,41 @@ function AddFriendPage({ user, setPage }) {
       </div>
       <div className="search-section">
         <div className="search-card">
+          <h2>Find Friends</h2>
+          <p>Search using username and tag</p>
           <form onSubmit={searchUser} className="search-form">
-            <input
-              type="text"
-              value={searchUsername}
-              onChange={e => setSearchUsername(e.target.value.replace(/\s/g, ''))}
-              placeholder="Username"
-              required
-            />
-            <input
-              type="text"
-              value={searchTag}
-              onChange={e => setSearchTag(e.target.value.toUpperCase())}
-              placeholder="TAG"
-              required
-              maxLength={4}
-              className="tag-input"
-            />
+            <div className="search-inputs">
+              <input
+                type="text"
+                value={searchUsername}
+                onChange={e => setSearchUsername(e.target.value.replace(/\s/g, ''))}
+                placeholder="Username"
+                required
+              />
+              <input
+                type="text"
+                value={searchTag}
+                onChange={e => setSearchTag(e.target.value.toUpperCase())}
+                placeholder="TAG"
+                required
+                maxLength={4}
+                className="tag-input"
+              />
+            </div>
             <button type="submit" className="search-button" disabled={searching}>
               {searching ? 'Searching...' : 'Search'}
             </button>
           </form>
-          {error && <div className="alert error">{error}</div>}
-          {success && <div className="alert success">{success}</div>}
+          
+          {error && <div className="alert error">⚠️ {error}</div>}
+          {success && <div className="alert success">✓ {success}</div>}
+          
           {searchResult && (
             <div className="result-card">
               <div className="result-header">
                 <img src={searchResult.avatar} alt="" className="result-avatar" />
                 <div className="result-info">
-                  <h3>{searchResult.username}</h3>
-                  <p className="result-tag">#{searchResult.tag}</p>
+                  <h3>{searchResult.username}#{searchResult.tag}</h3>
                   <span className={`status ${searchResult.online ? 'online' : 'offline'}`}>
                     {searchResult.online ? '● Online' : '○ Offline'}
                   </span>
@@ -923,17 +1116,53 @@ function AddFriendPage({ user, setPage }) {
               </button>
             </div>
           )}
+          
+          <div className="search-tip">
+            <span>💡</span>
+            <p>Need to find someone's tag? Ask them to share their username#tag combination.</p>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function ProfilePage({ user, setPage }) {
+function ProfilePage({ user, setPage, isOwnProfile }) {
   const [usernameInput, setUsernameInput] = useState(user?.username || '');
+  const [bio, setBio] = useState(user?.bio || '');
+  const [selectedBannerColor, setSelectedBannerColor] = useState(user?.bannerColor || BANNER_COLORS[0]);
+  const [selectedCardColor, setSelectedCardColor] = useState(user?.cardColor || CARD_COLORS[0]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showUsernameConfirm, setShowUsernameConfirm] = useState(false);
+  const [friendsData, setFriendsData] = useState([]);
+  const [mutualFriends, setMutualFriends] = useState([]);
+
+  useEffect(() => {
+    if (user?.friends) {
+      loadFriendsData();
+    }
+  }, [user?.friends]);
+
+  const loadFriendsData = async () => {
+    const friendsArr = Array.isArray(user.friends) ? user.friends.map(f => typeof f === "string" ? { userId: f, nickname: "" } : f) : [];
+    const friendsList = [];
+    
+    for (const { userId } of friendsArr) {
+      try {
+        const userRef = doc(db, 'users', userId);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          friendsList.push({ uid: userId, ...userSnap.data() });
+        }
+      } catch (err) {
+        console.error('Error loading friend data:', err);
+      }
+    }
+    
+    setFriendsData(friendsList);
+  };
 
   const lastChanged = user?.lastUsernameChange?.toDate?.() || null;
   const canChangeUsername = (() => {
@@ -943,34 +1172,67 @@ function ProfilePage({ user, setPage }) {
     return days >= 7;
   })();
 
-  const handleChangeUsername = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
+  const handleBioSave = async () => {
+    if (bio.length > 150) {
+      setError('Bio must be less than 150 characters');
+      return;
+    }
     setLoading(true);
-    if (usernameInput.length < 3) {
-      setError('Username must be at least 3 characters');
-      setLoading(false);
-      return;
+    try {
+      await updateDoc(doc(db, "users", user.uid), { bio });
+      setSuccess("Bio updated!");
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError("Failed to update bio");
     }
-    if (!canChangeUsername) {
-      setError('You can only change username once every 7 days.');
-      setLoading(false);
-      return;
+    setLoading(false);
+  };
+
+  const handleColorSave = async () => {
+    setLoading(true);
+    try {
+      await updateDoc(doc(db, "users", user.uid), {
+        bannerColor: selectedBannerColor,
+        cardColor: selectedCardColor
+      });
+      setSuccess("Profile colors updated!");
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError("Failed to update colors");
     }
-    const q = query(collection(db, "users"), where("usernameLower", "==", usernameInput.toLowerCase()), where("tag", "==", user.tag));
-    const snap = await getDocs(q);
-    if (!snap.empty && snap.docs[0].id !== user.uid) {
-      setError("Username already taken with current tag.");
-      setLoading(false);
-      return;
+    setLoading(false);
+  };
+
+  const handleUsernameConfirm = async () => {
+    setLoading(true);
+    try {
+      if (usernameInput.length < 3) {
+        setError('Username must be at least 3 characters');
+        setLoading(false);
+        return;
+      }
+      if (!canChangeUsername) {
+        setError('You can only change username once every 7 days.');
+        setLoading(false);
+        return;
+      }
+      const q = query(collection(db, "users"), where("usernameLower", "==", usernameInput.toLowerCase()), where("tag", "==", user.tag));
+      const snap = await getDocs(q);
+      if (!snap.empty && snap.docs[0].id !== user.uid) {
+        setError("Username already taken with current tag.");
+        setLoading(false);
+        return;
+      }
+      await updateDoc(doc(db, "users", user.uid), {
+        username: usernameInput,
+        usernameLower: usernameInput.toLowerCase(),
+        lastUsernameChange: serverTimestamp()
+      });
+      setSuccess("Username updated!");
+      setShowUsernameConfirm(false);
+    } catch (err) {
+      setError("Failed to update username");
     }
-    await updateDoc(doc(db, "users", user.uid), {
-      username: usernameInput,
-      usernameLower: usernameInput.toLowerCase(),
-      lastUsernameChange: serverTimestamp()
-    });
-    setSuccess("Username updated!");
     setLoading(false);
   };
 
@@ -983,6 +1245,41 @@ function ProfilePage({ user, setPage }) {
     });
   };
 
+  const loadMutualFriends = async (targetUserId) => {
+    const targetUserRef = doc(db, 'users', targetUserId);
+    const targetUserSnap = await getDoc(targetUserRef);
+    if (targetUserSnap.exists()) {
+      const targetFriends = Array.isArray(targetUserSnap.data().friends) 
+        ? targetUserSnap.data().friends.map(f => typeof f === "string" ? { userId: f, nickname: "" } : f)
+        : [];
+      const myFriends = Array.isArray(user.friends) 
+        ? user.friends.map(f => typeof f === "string" ? { userId: f, nickname: "" } : f)
+        : [];
+      
+      const mutual = [];
+      for (const myFriend of myFriends) {
+        if (targetFriends.some(tf => tf.userId === myFriend.userId)) {
+          try {
+            const friendRef = doc(db, 'users', myFriend.userId);
+            const friendSnap = await getDoc(friendRef);
+            if (friendSnap.exists()) {
+              mutual.push({ uid: myFriend.userId, ...friendSnap.data() });
+            }
+          } catch (err) {
+            console.error('Error loading mutual friend:', err);
+          }
+        }
+      }
+      setMutualFriends(mutual);
+    }
+  };
+
+  useEffect(() => {
+    if (!isOwnProfile) {
+      loadMutualFriends(user.uid);
+    }
+  }, [user.uid, isOwnProfile]);
+
   return (
     <div className="profile-page">
       <div className="page-header">
@@ -990,41 +1287,116 @@ function ProfilePage({ user, setPage }) {
         <h1>Profile</h1>
       </div>
       <div className="profile-content">
-        <div className="profile-card">
+        <div 
+          className="profile-card"
+          style={{ 
+            background: selectedCardColor,
+            border: `1px solid ${selectedCardColor === 'var(--bg-card)' ? 'var(--border)' : 'transparent'}`
+          }}
+        >
+          <div 
+            className="profile-banner"
+            style={{ background: selectedBannerColor }}
+          ></div>
+          
           <div className="profile-header">
             <div className="avatar-container">
               <img src={user?.avatar} alt="" className="profile-avatar-large" />
               <div className="online-status">●</div>
             </div>
-            <form onSubmit={handleChangeUsername} className="username-form">
-              <input
-                type="text"
-                value={usernameInput}
-                onChange={e => setUsernameInput(e.target.value.replace(/\s/g, ""))}
-                maxLength={20}
-                disabled={!canChangeUsername || loading}
-                className="username-input"
-              />
-              <span className="user-tag-large">#{user.tag}</span>
-              <button type="submit" className="update-button" disabled={!canChangeUsername || loading}>
-                {loading ? 'Updating...' : 'Update Username'}
-              </button>
-              {!canChangeUsername && (
+            
+            <div className="username-form">
+              <div className="username-display">
+                <input
+                  type="text"
+                  value={usernameInput}
+                  onChange={e => setUsernameInput(e.target.value.replace(/\s/g, ""))}
+                  maxLength={20}
+                  disabled={!canChangeUsername || loading || !isOwnProfile}
+                  className="username-input"
+                />
+                <span className="user-tag-large">#{user.tag}</span>
+              </div>
+              
+              {isOwnProfile && canChangeUsername && (
+                <button 
+                  className="update-button" 
+                  onClick={() => setShowUsernameConfirm(true)}
+                  disabled={loading || usernameInput === user.username}
+                >
+                  Update Username
+                </button>
+              )}
+              
+              {!canChangeUsername && isOwnProfile && (
                 <p className="cooldown-notice">
-                  Next change available in {Math.ceil(7 - ((new Date() - lastChanged) / (1000 * 60 * 60 * 24)))} days
+                  Next username change available in {Math.ceil(7 - ((new Date() - lastChanged) / (1000 * 60 * 60 * 24)))} days
                 </p>
               )}
-              {error && <div className="alert error">{error}</div>}
-              {success && <div className="alert success">{success}</div>}
-            </form>
+            </div>
           </div>
+
+          {error && <div className="alert error">{error}</div>}
+          {success && <div className="alert success">{success}</div>}
+
+          <div className="profile-section">
+            <h3>Bio</h3>
+            {isOwnProfile ? (
+              <div className="bio-section">
+                <textarea
+                  value={bio}
+                  onChange={e => setBio(e.target.value)}
+                  placeholder="Tell everyone about yourself..."
+                  maxLength={150}
+                  className="bio-input"
+                  rows="3"
+                />
+                <div className="bio-footer">
+                  <span className="bio-counter">{bio.length}/150</span>
+                  <button 
+                    className="save-button"
+                    onClick={handleBioSave}
+                    disabled={loading || bio === user.bio}
+                  >
+                    Save Bio
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="bio-text">{bio || 'No bio yet'}</p>
+            )}
+          </div>
+
+          {!isOwnProfile && mutualFriends.length > 0 && (
+            <div className="profile-section">
+              <h3>Mutual Friends ({mutualFriends.length})</h3>
+              <div className="mutual-friends">
+                {mutualFriends.slice(0, 5).map(friend => (
+                  <div 
+                    key={friend.uid} 
+                    className="mutual-friend"
+                    onClick={() => setPage(`viewProfile-${friend.uid}`)}
+                  >
+                    <img src={friend.avatar} alt="" />
+                    <span>{friend.username}</span>
+                  </div>
+                ))}
+                {mutualFriends.length > 5 && (
+                  <div className="mutual-friend more">
+                    +{mutualFriends.length - 5} more
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="profile-stats-grid">
             <div className="stat-item">
-              <div className="stat-number">{user?.friends?.length || 0}</div>
+              <div className="stat-number">{friendsData.length}</div>
               <div className="stat-label">Friends</div>
             </div>
             <div className="stat-item">
-              <div className="stat-number">●</div>
+              <div className="stat-number">{user?.online ? '●' : '○'}</div>
               <div className="stat-label">Status</div>
             </div>
             <div className="stat-item">
@@ -1034,6 +1406,51 @@ function ProfilePage({ user, setPage }) {
               <div className="stat-label">Joined</div>
             </div>
           </div>
+
+          {isOwnProfile && (
+            <div className="profile-section">
+              <h3>Customize Profile</h3>
+              <div className="customization-section">
+                <div className="color-picker">
+                  <label>Banner Color</label>
+                  <div className="color-options">
+                    {BANNER_COLORS.map((color, index) => (
+                      <button
+                        key={index}
+                        className={`color-option ${selectedBannerColor === color ? 'selected' : ''}`}
+                        style={{ background: color }}
+                        onClick={() => setSelectedBannerColor(color)}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="color-picker">
+                  <label>Card Color</label>
+                  <div className="color-options">
+                    {CARD_COLORS.map((color, index) => (
+                      <button
+                        key={index}
+                        className={`color-option ${selectedCardColor === color ? 'selected' : ''}`}
+                        style={{ 
+                          background: color,
+                          border: color === 'var(--bg-card)' ? '1px solid var(--border)' : 'none'
+                        }}
+                        onClick={() => setSelectedCardColor(color)}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <button 
+                  className="save-button"
+                  onClick={handleColorSave}
+                  disabled={loading || (selectedBannerColor === user.bannerColor && selectedCardColor === user.cardColor)}
+                >
+                  Save Colors
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="profile-details">
             <div className="detail-item">
               <span className="detail-icon">✉️</span>
@@ -1057,8 +1474,340 @@ function ProfilePage({ user, setPage }) {
               </div>
             </div>
           </div>
+
           <div className="profile-footer">
             <p className="app-credit">MYCircle • The circle that matters.</p>
+          </div>
+        </div>
+      </div>
+
+      {showUsernameConfirm && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>Confirm Username Change</h2>
+              <button onClick={() => setShowUsernameConfirm(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <p>You can only change your username once every 7 days.</p>
+              <p>Are you sure you want to change your username to <strong>{usernameInput}</strong>?</p>
+            </div>
+            <div className="modal-actions">
+              <button className="primary-button" onClick={handleUsernameConfirm} disabled={loading}>
+                {loading ? 'Updating...' : 'Confirm Change'}
+              </button>
+              <button className="secondary-button" onClick={() => setShowUsernameConfirm(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ViewProfilePage({ user, setPage, profileId }) {
+  const [profileData, setProfileData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [friendsData, setFriendsData] = useState([]);
+  const [mutualFriends, setMutualFriends] = useState([]);
+  const [showActions, setShowActions] = useState(false);
+  const [nicknameInput, setNicknameInput] = useState('');
+  const [editingNickname, setEditingNickname] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    loadProfileData();
+  }, [profileId]);
+
+  useEffect(() => {
+    if (profileData?.friends) {
+      loadFriendsData();
+      loadMutualFriends();
+    }
+  }, [profileData]);
+
+  const loadProfileData = async () => {
+    try {
+      const userRef = doc(db, 'users', profileId);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+        setProfileData({ uid: profileId, ...userSnap.data() });
+        
+        const myFriends = Array.isArray(user.friends) 
+          ? user.friends.map(f => typeof f === "string" ? { userId: f, nickname: "" } : f)
+          : [];
+        const friend = myFriends.find(f => f.userId === profileId);
+        if (friend) {
+          setNicknameInput(friend.nickname || '');
+        }
+      }
+    } catch (err) {
+      console.error('Error loading profile:', err);
+    }
+    setLoading(false);
+  };
+
+  const loadFriendsData = async () => {
+    const friendsArr = Array.isArray(profileData.friends) 
+      ? profileData.friends.map(f => typeof f === "string" ? { userId: f, nickname: "" } : f)
+      : [];
+    const friendsList = [];
+    
+    for (const { userId } of friendsArr.slice(0, 10)) {
+      try {
+        const userRef = doc(db, 'users', userId);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          friendsList.push({ uid: userId, ...userSnap.data() });
+        }
+      } catch (err) {
+        console.error('Error loading friend data:', err);
+      }
+    }
+    
+    setFriendsData(friendsList);
+  };
+
+  const loadMutualFriends = async () => {
+    const targetFriends = Array.isArray(profileData.friends) 
+      ? profileData.friends.map(f => typeof f === "string" ? { userId: f, nickname: "" } : f)
+      : [];
+    const myFriends = Array.isArray(user.friends) 
+      ? user.friends.map(f => typeof f === "string" ? { userId: f, nickname: "" } : f)
+      : [];
+    
+    const mutual = [];
+    for (const myFriend of myFriends) {
+      if (targetFriends.some(tf => tf.userId === myFriend.userId)) {
+        try {
+          const friendRef = doc(db, 'users', myFriend.userId);
+          const friendSnap = await getDoc(friendRef);
+          if (friendSnap.exists()) {
+            mutual.push({ uid: myFriend.userId, ...friendSnap.data() });
+          }
+        } catch (err) {
+          console.error('Error loading mutual friend:', err);
+        }
+      }
+    }
+    setMutualFriends(mutual);
+  };
+
+  const handleRemoveFriend = async () => {
+    try {
+      const myFriends = Array.isArray(user.friends) 
+        ? user.friends.map(f => typeof f === "string" ? { userId: f, nickname: "" } : f)
+        : [];
+      await updateDoc(doc(db, 'users', user.uid), {
+        friends: myFriends.filter(f => f.userId !== profileId)
+      });
+      
+      const theirFriends = Array.isArray(profileData.friends) 
+        ? profileData.friends.map(f => typeof f === "string" ? { userId: f, nickname: "" } : f)
+        : [];
+      await updateDoc(doc(db, 'users', profileId), {
+        friends: theirFriends.filter(f => f.userId !== user.uid)
+      });
+      
+      setSuccess("Friend removed");
+      setTimeout(() => {
+        setSuccess('');
+        setPage('chat');
+      }, 1500);
+    } catch (err) {
+      setError('Failed to remove friend');
+    }
+  };
+
+  const handleUpdateNickname = async () => {
+    try {
+      const myFriends = Array.isArray(user.friends) 
+        ? user.friends.map(f => typeof f === "string" ? { userId: f, nickname: "" } : f)
+        : [];
+      const updatedFriends = myFriends.map(f => 
+        f.userId === profileId ? { ...f, nickname: nicknameInput } : f
+      );
+      await updateDoc(doc(db, 'users', user.uid), { friends: updatedFriends });
+      setSuccess("Nickname updated");
+      setEditingNickname(false);
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError('Failed to update nickname');
+    }
+  };
+
+  const formatDate = (timestamp) => {
+    if (!timestamp?.toLocaleDateString) return 'Unknown';
+    return timestamp.toLocaleDateString('en-MY', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-spinner"></div>
+        <div className="loading-text">Loading Profile</div>
+      </div>
+    );
+  }
+
+  if (!profileData) {
+    return (
+      <div className="profile-page">
+        <div className="page-header">
+          <button className="back-button" onClick={() => setPage('chat')}>← Back</button>
+          <h1>Profile Not Found</h1>
+        </div>
+      </div>
+    );
+  }
+
+  const isFriend = Array.isArray(user.friends) 
+    ? user.friends.some(f => {
+        const friend = typeof f === "string" ? { userId: f, nickname: "" } : f;
+        return friend.userId === profileId;
+      })
+    : false;
+
+  return (
+    <div className="profile-page">
+      <div className="page-header">
+        <button className="back-button" onClick={() => setPage('chat')}>← Back</button>
+        <h1>Profile</h1>
+      </div>
+      <div className="profile-content">
+        <div 
+          className="profile-card"
+          style={{ 
+            background: profileData.cardColor || CARD_COLORS[0],
+            border: `1px solid ${profileData.cardColor === 'var(--bg-card)' ? 'var(--border)' : 'transparent'}`
+          }}
+        >
+          <div 
+            className="profile-banner"
+            style={{ background: profileData.bannerColor || BANNER_COLORS[0] }}
+          ></div>
+          
+          <div className="profile-header">
+            <div className="avatar-container">
+              <img src={profileData.avatar} alt="" className="profile-avatar-large" />
+              <div className={`online-status ${profileData.online ? 'online' : 'offline'}`}>
+                {profileData.online ? '●' : '○'}
+              </div>
+            </div>
+            
+            <div className="username-form">
+              <div className="username-display">
+                <h2 className="username-view">{profileData.username}</h2>
+                <span className="user-tag-large">#{profileData.tag}</span>
+              </div>
+              
+              {isFriend && (
+                <div className="friend-actions-container">
+                  <button 
+                    className="action-toggle"
+                    onClick={() => setShowActions(!showActions)}
+                  >
+                    {showActions ? '▲' : '▼'} Actions
+                  </button>
+                  
+                  {showActions && (
+                    <div className="actions-dropdown">
+                      {editingNickname ? (
+                        <div className="nickname-edit-form">
+                          <input
+                            type="text"
+                            value={nicknameInput}
+                            onChange={e => setNicknameInput(e.target.value)}
+                            placeholder="Enter nickname"
+                            maxLength={20}
+                          />
+                          <button onClick={handleUpdateNickname}>Save</button>
+                          <button onClick={() => setEditingNickname(false)}>Cancel</button>
+                        </div>
+                      ) : (
+                        <button 
+                          className="dropdown-button"
+                          onClick={() => setEditingNickname(true)}
+                        >
+                          Edit Nickname
+                        </button>
+                      )}
+                      <button 
+                        className="dropdown-button danger"
+                        onClick={handleRemoveFriend}
+                      >
+                        Remove Friend
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {error && <div className="alert error">{error}</div>}
+          {success && <div className="alert success">{success}</div>}
+
+          <div className="profile-section">
+            <h3>Bio</h3>
+            <p className="bio-text">{profileData.bio || 'No bio yet'}</p>
+          </div>
+
+          {mutualFriends.length > 0 && (
+            <div className="profile-section">
+              <h3>Mutual Friends ({mutualFriends.length})</h3>
+              <div className="mutual-friends">
+                {mutualFriends.slice(0, 5).map(friend => (
+                  <div 
+                    key={friend.uid} 
+                    className="mutual-friend"
+                    onClick={() => setPage(`viewProfile-${friend.uid}`)}
+                  >
+                    <img src={friend.avatar} alt="" />
+                    <span>{friend.username}</span>
+                  </div>
+                ))}
+                {mutualFriends.length > 5 && (
+                  <div className="mutual-friend more">
+                    +{mutualFriends.length - 5} more
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="profile-stats-grid">
+            <div className="stat-item">
+              <div className="stat-number">{friendsData.length}</div>
+              <div className="stat-label">Friends</div>
+            </div>
+            <div className="stat-item">
+              <div className="stat-number">{profileData.online ? '●' : '○'}</div>
+              <div className="stat-label">Status</div>
+            </div>
+            <div className="stat-item">
+              <div className="stat-number">
+                {new Date(profileData.createdAt?.toDate?.()).getFullYear()}
+              </div>
+              <div className="stat-label">Joined</div>
+            </div>
+          </div>
+
+          <div className="profile-details">
+            <div className="detail-item">
+              <span className="detail-icon">📅</span>
+              <div className="detail-content">
+                <div className="detail-label">Member Since</div>
+                <div className="detail-value">{formatDate(profileData.createdAt?.toDate?.())}</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
