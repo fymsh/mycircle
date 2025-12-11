@@ -38,53 +38,103 @@ function App() {
   const [page, setPage] = useState('auth');
 
   useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (loading) {
+        console.log('Loading timeout triggered');
+        setLoading(false);
+        setPage('auth');
+      }
+    }, 5000);
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      clearTimeout(timeoutId);
+      
       if (currentUser) {
+        console.log('User authenticated:', currentUser.uid);
         const userRef = doc(db, 'users', currentUser.uid);
-        const unsubUser = onSnapshot(userRef, async (docu) => {
-          if (docu.exists()) {
-            let d = docu.data();
-            if (!d.tag) {
-              let unique = false, finalTag = "";
-              for (let i = 0; i < 10 && !unique; i++) {
-                const candidate = generateTagStr();
-                const tagQuery = query(
-                  collection(db, 'users'),
-                  where('usernameLower', '==', d.usernameLower),
-                  where('tag', '==', candidate)
-                );
-                const tagSnap = await getDocs(tagQuery);
-                if (tagSnap.empty) {
-                  finalTag = candidate;
-                  unique = true;
+        
+        try {
+          const unsubUser = onSnapshot(userRef, 
+            async (docu) => {
+              if (docu.exists()) {
+                let d = docu.data();
+                if (!d.tag) {
+                  let unique = false, finalTag = "";
+                  for (let i = 0; i < 10 && !unique; i++) {
+                    const candidate = generateTagStr();
+                    const tagQuery = query(
+                      collection(db, 'users'),
+                      where('usernameLower', '==', d.usernameLower),
+                      where('tag', '==', candidate)
+                    );
+                    const tagSnap = await getDocs(tagQuery);
+                    if (tagSnap.empty) {
+                      finalTag = candidate;
+                      unique = true;
+                    }
+                  }
+                  if (unique) {
+                    await updateDoc(userRef, { tag: finalTag });
+                    d.tag = finalTag;
+                  }
                 }
+                setUserData({ uid: currentUser.uid, ...d });
+                setUser(currentUser);
+                setPage('chat');
+                setLoading(false);
+              } else {
+                console.log('User document does not exist');
+                await signOut(auth);
+                setUser(null);
+                setUserData(null);
+                setPage('auth');
+                setLoading(false);
               }
-              if (unique) {
-                await updateDoc(userRef, { tag: finalTag });
-                d.tag = finalTag;
-              }
+            },
+            (error) => {
+              console.error('Firestore snapshot error:', error);
+              setUser(null);
+              setUserData(null);
+              setPage('auth');
+              setLoading(false);
             }
-            setUserData({ uid: currentUser.uid, ...d });
-          }
-        });
-        setUser(currentUser);
-        setPage('chat');
-        return () => unsubUser();
+          );
+          
+          return () => {
+            if (unsubUser) unsubUser();
+          };
+        } catch (error) {
+          console.error('Error in user data fetch:', error);
+          setUser(null);
+          setUserData(null);
+          setPage('auth');
+          setLoading(false);
+        }
       } else {
+        console.log('No authenticated user');
         setUser(null);
         setUserData(null);
         setPage('auth');
+        setLoading(false);
       }
+    }, (error) => {
+      console.error('Auth state change error:', error);
+      clearTimeout(timeoutId);
       setLoading(false);
+      setPage('auth');
     });
-    return unsubscribe;
+
+    return () => {
+      clearTimeout(timeoutId);
+      unsubscribe();
+    };
   }, []);
 
   if (loading) {
     return (
       <div className="loading-screen">
         <div className="loading-spinner"></div>
-        <div className="loading-text">Loading</div>
+        <div className="loading-text">Loading MYCircle</div>
         <div className="loading-subtext">Connecting to your circle...</div>
       </div>
     );
@@ -191,8 +241,8 @@ function AuthPage({ setPage }) {
                 <div className="logo-dot dot-4"></div>
               </div>
             </div>
-            <h1 className="logo-title">Nexus</h1>
-            <p className="logo-subtitle">Connect with your circle</p>
+            <h1 className="logo-title">MYCircle</h1>
+            <p className="logo-subtitle">The circle that matters</p>
           </div>
         </div>
 
@@ -269,7 +319,7 @@ function AuthPage({ setPage }) {
 
       <div className="auth-watermark">
         <div className="watermark-line"></div>
-        <span>Designed with purpose</span>
+        <span>Your private social space</span>
         <div className="watermark-line"></div>
       </div>
     </div>
@@ -577,7 +627,7 @@ function ChatPage({ user, setPage }) {
               <div className="brand-dot"></div>
               <div className="brand-dot"></div>
             </div>
-            <h2>Nexus</h2>
+            <h2>MYCircle</h2>
           </div>
           <button className="close-sidebar" onClick={() => setSidebarOpen(false)}>✕</button>
         </div>
