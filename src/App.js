@@ -9,7 +9,6 @@ import {
 import {
   doc,
   setDoc,
-  getDoc,
   getDocs,
   collection,
   query,
@@ -34,7 +33,7 @@ function App() {
         const userRef = doc(db, 'users', currentUser.uid);
         const unsubUser = onSnapshot(userRef, (doc) => {
           if (doc.exists()) {
-            setUserData({ uid: currentUser.uid, ... doc.data() });
+            setUserData({ uid: currentUser.uid, ...doc.data() });
           }
         });
         setUser(currentUser);
@@ -75,9 +74,6 @@ function App() {
   );
 }
 
-// ==========================================
-// 🔐 AUTH PAGE
-// ==========================================
 function AuthPage({ setPage }) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -85,6 +81,23 @@ function AuthPage({ setPage }) {
   const [username, setUsername] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const generateTag = async (username) => {
+    for (let i = 0; i < 10; i++) {
+      const tag = Array.from({ length: 4 }, () =>
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"[Math.floor(Math.random() * 36)]
+      ).join('');
+      const tagQuery = query(
+        collection(db, 'users'),
+        where('usernameLower', '==', username.toLowerCase()),
+        where('tag', '==', tag)
+      );
+      const tagSnap = await getDocs(tagQuery);
+      if (tagSnap.empty) return tag;
+    }
+    alert("Failed to generate unique tag. Try a new username?");
+    return null;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -100,27 +113,21 @@ function AuthPage({ setPage }) {
           setLoading(false);
           return;
         }
-
-        const usernameQuery = query(
-          collection(db, 'users'),
-          where('usernameLower', '==', username.toLowerCase())
-        );
-        const usernameSnapshot = await getDocs(usernameQuery);
-        
-        if (! usernameSnapshot.empty) {
-          setError('Username already taken');
+        const tag = await generateTag(username);
+        if (!tag) {
+          setError("Couldn't find a tag, try another username.");
           setLoading(false);
           return;
         }
-
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        
         await setDoc(doc(db, 'users', userCredential.user.uid), {
-          username: username,
+          username,
+          tag,
           usernameLower: username.toLowerCase(),
-          email: email,
-          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}&backgroundColor=1e3a5f,1e40af,3730a3`,
+          email,
+          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}${tag}`,
           createdAt: serverTimestamp(),
+          lastUsernameChange: serverTimestamp(),
           online: true,
           friends: []
         });
@@ -148,7 +155,6 @@ function AuthPage({ setPage }) {
         <div className="circle circle-2"></div>
         <div className="circle circle-3"></div>
       </div>
-
       <div className="auth-card">
         <div className="auth-header">
           <div className="logo">
@@ -173,9 +179,8 @@ function AuthPage({ setPage }) {
             {isLogin ? 'Welcome back to your circle!' : 'Join your circle today'}
           </p>
         </div>
-
         <form onSubmit={handleSubmit} className="auth-form">
-          {! isLogin && (
+          {!isLogin && (
             <div className="input-group">
               <label>
                 <span className="label-icon">👤</span>
@@ -184,14 +189,13 @@ function AuthPage({ setPage }) {
               <input
                 type="text"
                 value={username}
-                onChange={(e) => setUsername(e.target.value. replace(/\s/g, ''))}
+                onChange={(e) => setUsername(e.target.value.replace(/\s/g, ''))}
                 placeholder="Choose a unique username"
-                required={! isLogin}
+                required={!isLogin}
                 maxLength={20}
               />
             </div>
           )}
-
           <div className="input-group">
             <label>
               <span className="label-icon">✉️</span>
@@ -205,7 +209,6 @@ function AuthPage({ setPage }) {
               required
             />
           </div>
-
           <div className="input-group">
             <label>
               <span className="label-icon">🔒</span>
@@ -220,9 +223,7 @@ function AuthPage({ setPage }) {
               minLength={6}
             />
           </div>
-
           {error && <div className="error-message">{error}</div>}
-
           <button type="submit" className="btn-primary" disabled={loading}>
             {loading ? (
               <span className="btn-loading"></span>
@@ -234,7 +235,6 @@ function AuthPage({ setPage }) {
             )}
           </button>
         </form>
-
         <div className="auth-footer">
           <p>
             {isLogin ? "Don't have an account?" : "Already have an account? "}
@@ -250,15 +250,11 @@ function AuthPage({ setPage }) {
           </p>
         </div>
       </div>
-
       <p className="auth-credit">Made with 💙 in Malaysia</p>
     </div>
   );
 }
 
-// ==========================================
-// 💬 CHAT PAGE
-// ==========================================
 function ChatPage({ user, setPage }) {
   const [friends, setFriends] = useState([]);
   const [selectedFriend, setSelectedFriend] = useState(null);
@@ -268,14 +264,12 @@ function ChatPage({ user, setPage }) {
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
-    if (! user?. friends?. length) {
+    if (!user?.friends?.length) {
       setFriends([]);
       return;
     }
-
     const friendsData = [];
     const unsubscribes = [];
-
     user.friends.forEach((friendId) => {
       const unsub = onSnapshot(doc(db, 'users', friendId), (doc) => {
         if (doc.exists()) {
@@ -284,36 +278,31 @@ function ChatPage({ user, setPage }) {
           if (existingIndex >= 0) {
             friendsData[existingIndex] = friendData;
           } else {
-            friendsData. push(friendData);
+            friendsData.push(friendData);
           }
           setFriends([...friendsData]);
-          
-          if (selectedFriend?. uid === friendId) {
+          if (selectedFriend?.uid === friendId) {
             setSelectedFriend(friendData);
           }
         }
       });
       unsubscribes.push(unsub);
     });
-
     return () => unsubscribes.forEach(unsub => unsub());
-  }, [user?. friends, selectedFriend?. uid]);
+  }, [user?.friends, selectedFriend?.uid]);
 
   useEffect(() => {
-    if (! selectedFriend || !user) return;
-
+    if (!selectedFriend || !user) return;
     const chatId = [user.uid, selectedFriend.uid].sort().join('_');
     const messagesRef = collection(db, 'chats', chatId, 'messages');
     const q = query(messagesRef, orderBy('createdAt', 'asc'));
-
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const msgs = snapshot.docs.map(doc => ({
-        id: doc. id,
+        id: doc.id,
         ...doc.data()
       }));
       setMessages(msgs);
     });
-
     return () => unsubscribe();
   }, [selectedFriend, user]);
 
@@ -322,24 +311,20 @@ function ChatPage({ user, setPage }) {
   }, [messages]);
 
   useEffect(() => {
-    if (!user?. uid) return;
-    
+    if (!user?.uid) return;
     const userRef = doc(db, 'users', user.uid);
     updateDoc(userRef, { online: true });
-
     const handleOffline = () => {
-      updateDoc(userRef, { online:  false, lastSeen: serverTimestamp() });
+      updateDoc(userRef, { online: false, lastSeen: serverTimestamp() });
     };
-
     window.addEventListener('beforeunload', handleOffline);
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
-        updateDoc(userRef, { online:  false, lastSeen: serverTimestamp() });
+        updateDoc(userRef, { online: false, lastSeen: serverTimestamp() });
       } else {
-        updateDoc(userRef, { online:  true });
+        updateDoc(userRef, { online: true });
       }
     });
-
     return () => {
       window.removeEventListener('beforeunload', handleOffline);
       handleOffline();
@@ -349,13 +334,10 @@ function ChatPage({ user, setPage }) {
   const sendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim() || !selectedFriend) return;
-
     const chatId = [user.uid, selectedFriend.uid].sort().join('_');
     const messagesRef = collection(db, 'chats', chatId, 'messages');
-
     const messageText = newMessage;
     setNewMessage('');
-
     await addDoc(messagesRef, {
       text: messageText,
       senderId: user.uid,
@@ -365,7 +347,7 @@ function ChatPage({ user, setPage }) {
   };
 
   const handleLogout = async () => {
-    if (user?. uid) {
+    if (user?.uid) {
       await updateDoc(doc(db, 'users', user.uid), { 
         online: false, 
         lastSeen: serverTimestamp() 
@@ -375,9 +357,9 @@ function ChatPage({ user, setPage }) {
   };
 
   const formatTime = (timestamp) => {
-    if (!timestamp?. toDate) return '';
+    if (!timestamp?.toDate) return '';
     const date = timestamp.toDate();
-    return date.toLocaleTimeString([], { hour: '2-digit', minute:  '2-digit' });
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   return (
@@ -401,23 +383,20 @@ function ChatPage({ user, setPage }) {
             <span>MYCircle</span>
           </div>
         </div>
-
         <div className="user-profile" onClick={() => setPage('profile')}>
-          <img src={user?. avatar} alt="" className="avatar" />
+          <img src={user?.avatar} alt="" className="avatar" />
           <div className="user-details">
-            <h3>{user?.username}</h3>
+            <h3>{user?.username}#{user?.tag}</h3>
             <span className="status online">● Online</span>
           </div>
           <span className="profile-arrow">›</span>
         </div>
-
         <div className="sidebar-actions">
           <button className="btn-add-friend" onClick={() => setPage('addFriend')}>
             <span className="btn-add-icon">+</span>
             Add Friend
           </button>
         </div>
-
         <div className="friends-section">
           <h4>Your Circle <span className="friend-count">{friends.length}</span></h4>
           <div className="friends-list">
@@ -442,7 +421,7 @@ function ChatPage({ user, setPage }) {
                     <span className={`status-dot ${friend.online ? 'online' : 'offline'}`}></span>
                   </div>
                   <div className="friend-info">
-                    <span className="friend-name">{friend.username}</span>
+                    <span className="friend-name">{friend.username}#{friend.tag}</span>
                     <span className={`friend-status ${friend.online ? 'online' : 'offline'}`}>
                       {friend.online ? 'Online' : 'Offline'}
                     </span>
@@ -452,16 +431,14 @@ function ChatPage({ user, setPage }) {
             )}
           </div>
         </div>
-
         <div className="sidebar-footer">
           <button className="btn-logout" onClick={handleLogout}>
             <span>🚪</span> Logout
           </button>
         </div>
       </div>
-
       <div className="chat-area">
-        {selectedFriend ?  (
+        {selectedFriend ? (
           <>
             <div className="chat-header">
               <button 
@@ -472,23 +449,22 @@ function ChatPage({ user, setPage }) {
               </button>
               <div className="chat-header-user">
                 <div className="friend-avatar-wrapper">
-                  <img src={selectedFriend. avatar} alt="" className="avatar-sm" />
+                  <img src={selectedFriend.avatar} alt="" className="avatar-sm" />
                   <span className={`status-dot ${selectedFriend.online ? 'online' : 'offline'}`}></span>
                 </div>
                 <div>
-                  <h3>{selectedFriend.username}</h3>
+                  <h3>{selectedFriend.username}#{selectedFriend.tag}</h3>
                   <span className={`header-status ${selectedFriend.online ? 'online' : 'offline'}`}>
                     {selectedFriend.online ? '● Online' : '○ Offline'}
                   </span>
                 </div>
               </div>
             </div>
-
             <div className="messages-container">
               {messages.length === 0 ? (
                 <div className="no-messages">
                   <span className="wave-emoji">👋</span>
-                  <p>Say hello to {selectedFriend. username}!</p>
+                  <p>Say hello to {selectedFriend.username}#{selectedFriend.tag}!</p>
                 </div>
               ) : (
                 messages.map(msg => (
@@ -498,14 +474,13 @@ function ChatPage({ user, setPage }) {
                   >
                     <div className="message-bubble">
                       <p>{msg.text}</p>
-                      <span className="message-time">{formatTime(msg. createdAt)}</span>
+                      <span className="message-time">{formatTime(msg.createdAt)}</span>
                     </div>
                   </div>
                 ))
               )}
               <div ref={messagesEndRef} />
             </div>
-
             <form className="message-form" onSubmit={sendMessage}>
               <input
                 type="text"
@@ -555,11 +530,9 @@ function ChatPage({ user, setPage }) {
   );
 }
 
-// ==========================================
-// ➕ ADD FRIEND PAGE
-// ==========================================
 function AddFriendPage({ user, setPage }) {
   const [searchUsername, setSearchUsername] = useState('');
+  const [searchTag, setSearchTag] = useState('');
   const [searchResult, setSearchResult] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -576,20 +549,20 @@ function AddFriendPage({ user, setPage }) {
     try {
       const usersRef = collection(db, 'users');
       const q = query(
-        usersRef, 
-        where('usernameLower', '==', searchUsername.toLowerCase().trim())
+        usersRef,
+        where('usernameLower', '==', searchUsername.toLowerCase().trim()),
+        where('tag', '==', searchTag.toUpperCase())
       );
       const snapshot = await getDocs(q);
 
       if (snapshot.empty) {
-        setError('User not found.  Check the username and try again.');
+        setError('User not found. Check the username+tag and try again.');
       } else {
-        const foundUser = { uid: snapshot.docs[0]. id, ...snapshot.docs[0].data() };
-        
+        const foundUser = { uid: snapshot.docs[0].id, ...snapshot.docs[0].data() };
         if (foundUser.uid === user.uid) {
           setError("That's you! Try searching for someone else.");
-        } else if (user.friends?. includes(foundUser.uid)) {
-          setError(`${foundUser.username} is already in your circle! `);
+        } else if (user.friends?.includes(foundUser.uid)) {
+          setError(`${foundUser.username}#${foundUser.tag} is already in your circle!`);
         } else {
           setSearchResult(foundUser);
         }
@@ -603,22 +576,19 @@ function AddFriendPage({ user, setPage }) {
   const addFriend = async () => {
     if (!searchResult) return;
     setLoading(true);
-
     try {
       const myFriends = user.friends || [];
       await updateDoc(doc(db, 'users', user.uid), {
         friends: [...myFriends, searchResult.uid]
       });
-
-      const theirFriends = searchResult. friends || [];
+      const theirFriends = searchResult.friends || [];
       await updateDoc(doc(db, 'users', searchResult.uid), {
         friends: [...theirFriends, user.uid]
       });
-
-      setSuccess(`${searchResult.username} added to your circle!  🎉`);
+      setSuccess(`${searchResult.username}#${searchResult.tag} added to your circle! 🎉`);
       setSearchResult(null);
       setSearchUsername('');
-      
+      setSearchTag('');
       setTimeout(() => setPage('chat'), 2000);
     } catch (err) {
       setError('Failed to add friend. Please try again.');
@@ -632,52 +602,54 @@ function AddFriendPage({ user, setPage }) {
         <div className="circle circle-1"></div>
         <div className="circle circle-2"></div>
       </div>
-
       <div className="add-friend-card">
         <button className="back-btn" onClick={() => setPage('chat')}>
           ← Back to Chat
         </button>
-
         <div className="add-friend-header">
           <div className="add-friend-icon">👥</div>
           <h2>Add to Circle</h2>
-          <p>Search by username to add friends</p>
+          <p>Search by username and tag to add friends</p>
         </div>
-
         <form onSubmit={searchUser} className="search-form">
-          <div className="search-input-wrapper">
-            <span className="search-icon">🔍</span>
+          <div className="input-group">
             <input
               type="text"
               value={searchUsername}
-              onChange={(e) => setSearchUsername(e.target.value. replace(/\s/g, ''))}
-              placeholder="Enter username..."
+              onChange={(e) => setSearchUsername(e.target.value.replace(/\s/g, ''))}
+              placeholder="Username"
               required
             />
-            <button type="submit" className="search-btn" disabled={searching || ! searchUsername.trim()}>
+            <input
+              type="text"
+              value={searchTag}
+              onChange={(e) => setSearchTag(e.target.value.toUpperCase())}
+              placeholder="Tag (e.g. X1P5)"
+              required
+              maxLength={4}
+              style={{ width: "90px", textTransform: "uppercase" }}
+            />
+            <button type="submit" className="btn-primary" disabled={searching || !searchUsername.trim() || !searchTag.trim()}>
               {searching ? '.. .' : 'Search'}
             </button>
           </div>
         </form>
-
         {error && (
           <div className="message-box error">
             <span>❌</span> {error}
           </div>
         )}
-        
         {success && (
           <div className="message-box success">
             <span>✅</span> {success}
           </div>
         )}
-
         {searchResult && (
           <div className="search-result">
             <div className="result-card">
               <img src={searchResult.avatar} alt="" className="result-avatar" />
               <div className="result-info">
-                <h3>{searchResult.username}</h3>
+                <h3>{searchResult.username}#{searchResult.tag}</h3>
                 <span className={`result-status ${searchResult.online ?  'online' : 'offline'}`}>
                   {searchResult.online ? '● Online' : '○ Offline'}
                 </span>
@@ -698,19 +670,15 @@ function AddFriendPage({ user, setPage }) {
             </button>
           </div>
         )}
-
         <div className="add-friend-tip">
           <span>💡</span>
-          <p>Ask your friend for their exact username</p>
+          <p>Ask your friend for their exact username and tag</p>
         </div>
       </div>
     </div>
   );
 }
 
-// ==========================================
-// 👤 PROFILE PAGE
-// ==========================================
 function ProfilePage({ user, setPage }) {
   const formatDate = (timestamp) => {
     if (!timestamp?.toDate) return 'Unknown';
@@ -720,28 +688,24 @@ function ProfilePage({ user, setPage }) {
       day: 'numeric'
     });
   };
-
   return (
     <div className="profile-container">
       <div className="profile-bg">
         <div className="circle circle-1"></div>
         <div className="circle circle-2"></div>
       </div>
-
       <div className="profile-card">
         <button className="back-btn" onClick={() => setPage('chat')}>
           ← Back to Chat
         </button>
-
         <div className="profile-header">
           <div className="profile-avatar-wrapper">
-            <img src={user?. avatar} alt="" className="profile-avatar" />
+            <img src={user?.avatar} alt="" className="profile-avatar" />
             <span className="profile-status-dot online"></span>
           </div>
-          <h2>{user?.username}</h2>
+          <h2>{user?.username}#{user?.tag}</h2>
           <p className="profile-email">{user?.email}</p>
         </div>
-
         <div className="profile-stats">
           <div className="stat-card">
             <span className="stat-number">{user?.friends?.length || 0}</span>
@@ -752,7 +716,6 @@ function ProfilePage({ user, setPage }) {
             <span className="stat-label">Online</span>
           </div>
         </div>
-
         <div className="profile-info">
           <div className="info-item">
             <span className="info-icon">📅</span>
@@ -765,11 +728,10 @@ function ProfilePage({ user, setPage }) {
             <span className="info-icon">🆔</span>
             <div>
               <span className="info-label">Username</span>
-              <span className="info-value">@{user?.username}</span>
+              <span className="info-value">@{user?.username}#{user?.tag}</span>
             </div>
           </div>
         </div>
-
         <div className="profile-footer">
           <p>MYCircle • Made with 💙 in Malaysia</p>
         </div>
