@@ -10,6 +10,7 @@ import {
   doc,
   setDoc,
   getDocs,
+  getDoc,
   collection,
   query,
   where,
@@ -18,8 +19,7 @@ import {
   orderBy,
   serverTimestamp,
   updateDoc,
-  deleteDoc,
-  arrayRemove
+  deleteDoc
 } from 'firebase/firestore';
 import './App.css';
 
@@ -165,7 +165,8 @@ function AuthPage({ setPage }) {
           createdAt: serverTimestamp(),
           lastUsernameChange: serverTimestamp(),
           online: true,
-          friends: []
+          friends: [],
+          unread: {}
         });
       }
     } catch (err) {
@@ -304,6 +305,7 @@ function ChatPage({ user, setPage, profileLink }) {
   const [groupName, setGroupName] = useState('');
   const [groupMembers, setGroupMembers] = useState([]);
   const [showEmojiBox, setShowEmojiBox] = useState({ id: null });
+  const [unreadMap, setUnreadMap] = useState({});
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -346,6 +348,7 @@ function ChatPage({ user, setPage, profileLink }) {
         }));
         setMessages(msgs);
       });
+      updateDoc(doc(db, 'users', user.uid), { [`unread.group_${groupId}`]: 0 });
       return () => unsubscribe();
     } else {
       const chatId = [user.uid, selectedChat.uid].sort().join('_');
@@ -358,6 +361,7 @@ function ChatPage({ user, setPage, profileLink }) {
         }));
         setMessages(msgs);
       });
+      updateDoc(doc(db, 'users', user.uid), { [`unread.chat_${selectedChat.uid}`]: 0 });
       return () => unsubscribe();
     }
   }, [selectedChat, user]);
@@ -402,6 +406,17 @@ function ChatPage({ user, setPage, profileLink }) {
     return () => unsub();
   }, [user?.uid]);
 
+  useEffect(() => {
+    if (!user?.uid) return;
+    const userRef = doc(db, 'users', user.uid);
+    const unsub = onSnapshot(userRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setUnreadMap(docSnap.data().unread || {});
+      }
+    });
+    return () => unsub();
+  }, [user?.uid]);
+
   const sendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim() || !selectedChat) return;
@@ -414,6 +429,15 @@ function ChatPage({ user, setPage, profileLink }) {
         createdAt: serverTimestamp(),
         reactions: {}
       });
+      const groupId = selectedChat.id;
+      groups.find(g => g.id === groupId)?.members?.forEach(async memberId => {
+        if (memberId !== user.uid) {
+          const memberRef = doc(db, 'users', memberId);
+          const memberSnap = await getDoc(memberRef);
+          const unreadCurr = memberSnap.data()?.unread?.[`group_${groupId}`] || 0;
+          await updateDoc(memberRef, { [`unread.group_${groupId}`]: unreadCurr + 1 });
+        }
+      });
     } else {
       const chatId = [user.uid, selectedChat.uid].sort().join('_');
       const messagesRef = collection(db, 'chats', chatId, 'messages');
@@ -424,6 +448,13 @@ function ChatPage({ user, setPage, profileLink }) {
         createdAt: serverTimestamp(),
         reactions: {}
       });
+      const receiverUid = selectedChat.uid;
+      if (receiverUid !== user.uid) {
+        const receiverRef = doc(db, 'users', receiverUid);
+        const receiverSnap = await getDoc(receiverRef);
+        const unreadCurr = receiverSnap.data()?.unread?.[`chat_${user.uid}`] || 0;
+        await updateDoc(receiverRef, { [`unread.chat_${user.uid}`]: unreadCurr + 1 });
+      }
     }
     setNewMessage('');
   };
@@ -614,74 +645,98 @@ function ChatPage({ user, setPage, profileLink }) {
                 <span className="no-friends-hint">Start a conversation!</span>
               </div>
             ) : (
-              sidebarItems.map(item => (
-                <div
-                  key={item.isGroup ? `group-${item.id}` : item.uid}
-                  className={`friend-item ${selectedChat && ((item.isGroup && selectedChat.id === item.id) || (!item.isGroup && selectedChat.uid === item.uid)) ? 'active' : ''}`}
-                  onClick={() => setSelectedChat(item)}
-                  style={item.isGroup ? {backgroundColor:"#3730a321"} : {}}
-                >
-                  <div className="friend-avatar-wrapper">
-                    <img src={item.avatar || "/default-group.png"} alt="" className="avatar-sm" />
-                    {item.isGroup 
-                      ? <span className="status-dot" style={{background:"#818cf8"}}></span>
-                      : <span className={`status-dot ${item.online ? 'online' : 'offline'}`}></span>
-                    }
-                  </div>
-                  <div className="friend-info">
-                    {item.isGroup ? (
-                      <span style={{fontWeight:600,color:"#8b5cf6"}}>{item.label}</span>
-                    ) : (
-                      editingNicknameId === item.uid ? (
-                        <div style={{display:'flex', alignItems:'center', marginBottom:"2px"}}>
-                          <input
-                            value={nicknameInput}
-                            onChange={e => setNicknameInput(e.target.value)}
-                            placeholder="Enter custom name"
-                            style={{fontSize:"0.92em"}}
-                          />
-                          <button
-                            style={{marginLeft:'2px', fontSize:'1em'}}
-                            onClick={e => { e.stopPropagation(); applyNickname(item.uid); }}
-                          >✔</button>
-                          <button
-                            style={{marginLeft:'2px', fontSize:'1em'}}
-                            onClick={e => { e.stopPropagation(); setEditingNicknameId(null); }}
-                          >✗</button>
-                        </div>
+              sidebarItems.map(item => {
+                let unreadCount = 0;
+                if (item.isGroup) unreadCount = unreadMap[`group_${item.id}`] || 0;
+                else unreadCount = unreadMap[`chat_${item.uid}`] || 0;
+                return (
+                  <div
+                    key={item.isGroup ? `group-${item.id}` : item.uid}
+                    className={`friend-item ${selectedChat && ((item.isGroup && selectedChat.id === item.id) || (!item.isGroup && selectedChat.uid === item.uid)) ? 'active' : ''}`}
+                    onClick={() => setSelectedChat(item)}
+                    style={item.isGroup ? {backgroundColor:"#3730a321"} : {}}
+                  >
+                    <div className="friend-avatar-wrapper" style={{position:"relative"}}>
+                      <img src={item.avatar || "/default-group.png"} alt="" className="avatar-sm" />
+                      {unreadCount > 0 && (
+                        <span style={{
+                          position:"absolute",
+                          right:0,
+                          top:0,
+                          width:"14px",
+                          height:"14px",
+                          background:"#ef4444",
+                          borderRadius:"50%",
+                          display:"inline-block",
+                          fontSize:"0.80em",
+                          color:"#fff",
+                          fontWeight:"700",
+                          textAlign:"center",
+                          lineHeight:"14px",
+                          zIndex:10,
+                          boxShadow:"0 2px 7px #f003"
+                        }}>{unreadCount>99?"99+":unreadCount}</span>
+                      )}
+                      {item.isGroup 
+                        ? <span className="status-dot" style={{background:"#818cf8"}}></span>
+                        : <span className={`status-dot ${item.online ? 'online' : 'offline'}`}></span>
+                      }
+                    </div>
+                    <div className="friend-info">
+                      {item.isGroup ? (
+                        <span style={{fontWeight:600,color:"#8b5cf6"}}>{item.label}</span>
                       ) : (
-                        <>
-                          {item.nickname &&
-                            <span className="friend-nickname">{item.nickname}</span>
-                          }
-                          <span className="friend-name">{item.username}#{item.tag}</span>
-                          <button
-                            style={{
-                              marginLeft:"5px",fontSize:"0.85em",background:"none",border:"none",
-                              color:"#94a3b8",cursor:"pointer"
-                            }}
-                            title="Edit Nickname"
-                            onClick={e => { e.stopPropagation(); startEditingNickname(item.uid, item.nickname); }}
-                          >✏️</button>
-                          <button
-                            style={{
-                              marginLeft:"4px",fontSize:"0.89em",background:"none",border:"none",
-                              color:"#ef4444",cursor:"pointer"
-                            }}
-                            title="Remove Friend"
-                            onClick={e => { e.stopPropagation(); removeFriend(item.uid); }}
-                          >🗑️</button>
-                        </>
-                      )
-                    )}
-                    <span className={`friend-status ${item.isGroup ? "online" : (item.online ? 'online' : 'offline')}`}>
-                      {item.isGroup
-                        ? "Group"
-                        : item.online ? 'Online' : 'Offline'}
-                    </span>
+                        editingNicknameId === item.uid ? (
+                          <div style={{display:'flex', alignItems:'center', marginBottom:"2px"}}>
+                            <input
+                              value={nicknameInput}
+                              onChange={e => setNicknameInput(e.target.value)}
+                              placeholder="Enter custom name"
+                              style={{fontSize:"0.92em"}}
+                            />
+                            <button
+                              style={{marginLeft:'2px', fontSize:'1em'}}
+                              onClick={e => { e.stopPropagation(); applyNickname(item.uid); }}
+                            >✔</button>
+                            <button
+                              style={{marginLeft:'2px', fontSize:'1em'}}
+                              onClick={e => { e.stopPropagation(); setEditingNicknameId(null); }}
+                            >✗</button>
+                          </div>
+                        ) : (
+                          <>
+                            {item.nickname &&
+                              <span className="friend-nickname">{item.nickname}</span>
+                            }
+                            <span className="friend-name">{item.username}#{item.tag}</span>
+                            <button
+                              style={{
+                                marginLeft:"5px",fontSize:"0.85em",background:"none",border:"none",
+                                color:"#94a3b8",cursor:"pointer"
+                              }}
+                              title="Edit Nickname"
+                              onClick={e => { e.stopPropagation(); startEditingNickname(item.uid, item.nickname); }}
+                            >✏️</button>
+                            <button
+                              style={{
+                                marginLeft:"4px",fontSize:"0.89em",background:"none",border:"none",
+                                color:"#ef4444",cursor:"pointer"
+                              }}
+                              title="Remove Friend"
+                              onClick={e => { e.stopPropagation(); removeFriend(item.uid); }}
+                            >🗑️</button>
+                          </>
+                        )
+                      )}
+                      <span className={`friend-status ${item.isGroup ? "online" : (item.online ? 'online' : 'offline')}`}>
+                        {item.isGroup
+                          ? "Group"
+                          : item.online ? 'Online' : 'Offline'}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
