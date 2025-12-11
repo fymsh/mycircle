@@ -17,9 +17,13 @@ import {
   addDoc,
   orderBy,
   serverTimestamp,
-  updateDoc
+  updateDoc,
+  deleteDoc,
+  arrayRemove
 } from 'firebase/firestore';
 import './App.css';
+
+const EMOJIS = ["😀","😂","👍","😮","😢","❤️","🔥"];
 
 function generateTagStr() {
   return Array.from({ length: 4 }, () =>
@@ -299,6 +303,7 @@ function ChatPage({ user, setPage, profileLink }) {
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [groupName, setGroupName] = useState('');
   const [groupMembers, setGroupMembers] = useState([]);
+  const [showEmojiBox, setShowEmojiBox] = useState({ id: null });
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -480,6 +485,64 @@ function ChatPage({ user, setPage, profileLink }) {
     setShowGroupModal(false);
   };
 
+  const handleReact = async (msgId, emoji, reactionsObj) => {
+    if (!selectedChat) return;
+    let coll, chatDocId;
+    if (selectedChat.isGroup) {
+      coll = collection(db, 'groups', selectedChat.id, 'messages');
+      chatDocId = selectedChat.id;
+    } else {
+      coll = collection(db, 'chats', [user.uid, selectedChat.uid].sort().join('_'), 'messages');
+      chatDocId = [user.uid, selectedChat.uid].sort().join('_');
+    }
+    const msgDoc = doc(coll, msgId);
+    const snapshot = await getDocs(query(coll, where("__name__", "==", msgId)));
+    let messageObj = {};
+    if (!snapshot.empty) {
+      messageObj = snapshot.docs[0].data();
+    }
+    let currentReactions = messageObj.reactions || {};
+    let updatedReactions = { ...currentReactions };
+
+    if (currentReactions[emoji] && currentReactions[emoji].includes(user.uid)) {
+      updatedReactions[emoji] = updatedReactions[emoji].filter(u => u !== user.uid);
+      if (updatedReactions[emoji].length === 0) delete updatedReactions[emoji];
+    } else {
+      updatedReactions[emoji] = updatedReactions[emoji] ? [...updatedReactions[emoji], user.uid] : [user.uid];
+    }
+    await updateDoc(msgDoc, { reactions: updatedReactions });
+  };
+
+  const removeFriend = async (friendUid) => {
+    const myFriends = Array.isArray(user.friends) ? user.friends.map(f => typeof f === "string" ? { userId: f, nickname: "" } : f) : [];
+    await updateDoc(doc(db, 'users', user.uid), {
+      friends: myFriends.filter(f => f.userId !== friendUid)
+    });
+    const friendDoc = doc(db, 'users', friendUid);
+    const friendSnap = await getDocs(query(collection(db, 'users'), where("__name__", "==", friendUid)));
+    if (!friendSnap.empty && friendSnap.docs[0].data().friends) {
+      const theirFriends = friendSnap.docs[0].data().friends.map(f => typeof f === "string" ? { userId: f, nickname: "" } : f);
+      await updateDoc(friendDoc, {
+        friends: theirFriends.filter(f => f.userId !== user.uid)
+      });
+    }
+  };
+
+  const deleteGroup = async (groupId) => {
+    await deleteDoc(doc(db, 'groups', groupId));
+    setSelectedChat(null);
+  };
+
+  const leaveGroup = async (groupId) => {
+    const currentGroup = groups.find(g => g.id === groupId);
+    if (!currentGroup) return;
+    const newMembers = currentGroup.members.filter(uid => uid !== user.uid);
+    await updateDoc(doc(db, 'groups', groupId), {
+      members: newMembers
+    });
+    setSelectedChat(null);
+  };
+
   const sidebarItems = [
     ...groups.map(g => ({
       ...g,
@@ -600,6 +663,14 @@ function ChatPage({ user, setPage, profileLink }) {
                             title="Edit Nickname"
                             onClick={e => { e.stopPropagation(); startEditingNickname(item.uid, item.nickname); }}
                           >✏️</button>
+                          <button
+                            style={{
+                              marginLeft:"4px",fontSize:"0.89em",background:"none",border:"none",
+                              color:"#ef4444",cursor:"pointer"
+                            }}
+                            title="Remove Friend"
+                            onClick={e => { e.stopPropagation(); removeFriend(item.uid); }}
+                          >🗑️</button>
                         </>
                       )
                     )}
@@ -647,6 +718,15 @@ function ChatPage({ user, setPage, profileLink }) {
                   <span className={`header-status ${selectedChat.isGroup ? "online" : (selectedChat.online ? 'online' : 'offline')}`}>
                     {selectedChat.isGroup ? '• Group' : selectedChat.online ? '● Online' : '○ Offline'}
                   </span>
+                  {selectedChat.isGroup && (
+                    <div style={{marginTop:"10px"}}>
+                      {selectedChat.createdBy === user.uid ? (
+                        <button className="btn-primary" style={{marginRight:"7px",background:"#ef4444"}} onClick={()=>deleteGroup(selectedChat.id)}>Delete Group</button>
+                      ) : (
+                        <button className="btn-primary" style={{background:"#2563eb"}} onClick={()=>leaveGroup(selectedChat.id)}>Leave Group</button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -665,24 +745,87 @@ function ChatPage({ user, setPage, profileLink }) {
                   </p>
                 </div>
               ) : (
-                messages.map(msg => (
-                  <div
-                    key={msg.id}
-                    className={`message ${msg.senderId === user.uid ? 'sent' : 'received'}`}
-                  >
-                    <div className="message-bubble">
-                      <p>{msg.text}</p>
-                      <span className="message-time">{formatTime(msg.createdAt)}</span>
-                      {selectedChat.isGroup &&
-                        <span style={{
-                          fontSize:"0.8em",
-                          color:"#64748b",
-                          marginLeft:"7px"
-                        }}>{msg.senderName}{msg.senderId === user.uid && " (You)"}</span>
-                      }
+                messages.map(msg => {
+                  const reactions = msg.reactions || {};
+                  return (
+                    <div
+                      key={msg.id}
+                      className={`message ${msg.senderId === user.uid ? 'sent' : 'received'}`}
+                    >
+                      <div className="message-bubble" style={{position:'relative'}}>
+                        <p>{msg.text}</p>
+                        <span className="message-time">{formatTime(msg.createdAt)}</span>
+                        {selectedChat.isGroup &&
+                          <span style={{
+                            fontSize:"0.8em",
+                            color:"#64748b",
+                            marginLeft:"7px"
+                          }}>{msg.senderName}{msg.senderId === user.uid && " (You)"}</span>
+                        }
+                        <div style={{display:"flex", gap:"5px", marginTop:4}}>
+                          {Object.keys(reactions).map(e => reactions[e]?.length ? (
+                            <span
+                              key={e}
+                              style={{
+                                background:"#e0e7ff",
+                                color:"#3730a3",
+                                borderRadius:"14px",
+                                padding:"2px 6px",
+                                fontSize:"1.02em",
+                                cursor:"pointer"
+                              }}
+                              onClick={() => handleReact(msg.id, e, reactions)}
+                              title={reactions[e].includes(user.uid) ? "Remove reaction" : "React"}
+                            >
+                              {e} {reactions[e].length}
+                            </span>
+                          ) : null)}
+                          <button
+                            onClick={() => setShowEmojiBox({ id: msg.id })}
+                            style={{
+                              fontSize:"1.06em",
+                              background:"none",
+                              border:"none",
+                              cursor:"pointer",
+                              color:"#a5b4fc"
+                            }}
+                          >😊</button>
+                        </div>
+                        {showEmojiBox.id === msg.id && (
+                          <div
+                            style={{
+                              position:"absolute",
+                              left:"0",top:"-45px",
+                              background:"#fff",
+                              border:"1px solid #ddd",
+                              borderRadius:"8px",
+                              padding:"3px 7px",
+                              display:"flex",
+                              gap:"6px",
+                              zIndex:11
+                            }}
+                          >
+                            {EMOJIS.map(e=>
+                              <span
+                                key={e}
+                                style={{
+                                  fontSize:"1.25em",
+                                  cursor:"pointer",
+                                  padding:"0 2px"
+                                }}
+                                onClick={()=>{
+                                  handleReact(msg.id, e, reactions);
+                                  setShowEmojiBox({id: null});
+                                }}
+                              >{e}</span>
+                            )}
+                            <span style={{cursor:"pointer",color:"#64748b"}} onClick={()=>setShowEmojiBox({id: null})}>×</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))
+                  )
+                })
               )}
               <div ref={messagesEndRef} />
             </div>
