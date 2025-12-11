@@ -84,7 +84,7 @@ function App() {
     return (
       <div className="loading-screen">
         <div className="loading-spinner"></div>
-        <div className="loading-text">Loading Nexus</div>
+        <div className="loading-text">Loading</div>
         <div className="loading-subtext">Connecting to your circle...</div>
       </div>
     );
