@@ -23,7 +23,7 @@ import {
 } from 'firebase/firestore';
 import './App.css';
 
-const EMOJIS = ["😀","😂","👍","😮","😢","❤️","🔥"];
+const EMOJIS = ["❤️", "😂", "😮", "😢", "👏", "🔥", "👍", "🎉"];
 
 function generateTagStr() {
   return Array.from({ length: 4 }, () =>
@@ -31,17 +31,11 @@ function generateTagStr() {
   ).join('');
 }
 
-function getProfileUrl({ username, tag }) {
-  const loc = window.location.origin;
-  return `${loc}/profile?u=${encodeURIComponent(username)}&t=${encodeURIComponent(tag)}`;
-}
-
 function App() {
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState('auth');
-  const [profileLink, setProfileLink] = useState('');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -50,7 +44,7 @@ function App() {
         const unsubUser = onSnapshot(userRef, async (docu) => {
           if (docu.exists()) {
             let d = docu.data();
-            if (!d.tag && !(d.username === 'fymm555' || d.email === 'fahimbovak@gmail.com')) {
+            if (!d.tag) {
               let unique = false, finalTag = "";
               for (let i = 0; i < 10 && !unique; i++) {
                 const candidate = generateTagStr();
@@ -71,11 +65,10 @@ function App() {
               }
             }
             setUserData({ uid: currentUser.uid, ...d });
-            setProfileLink(getProfileUrl({ username: d.username, tag: d.tag || '' }));
           }
         });
         setUser(currentUser);
-        setPage(window.location.pathname === '/profile' ? 'profile' : 'chat');
+        setPage('chat');
         return () => unsubUser();
       } else {
         setUser(null);
@@ -84,20 +77,15 @@ function App() {
       }
       setLoading(false);
     });
-    return () => unsubscribe();
+    return unsubscribe;
   }, []);
-
-  useEffect(() => {
-    if (userData) setLoading(false);
-  }, [userData]);
 
   if (loading) {
     return (
-      <div className="app">
-        <div className="loading">
-          <div className="loading-spinner"></div>
-          <p>Loading MYCircle...</p>
-        </div>
+      <div className="loading-screen">
+        <div className="loading-spinner"></div>
+        <div className="loading-text">Loading Nexus</div>
+        <div className="loading-subtext">Connecting to your circle...</div>
       </div>
     );
   }
@@ -105,9 +93,9 @@ function App() {
   return (
     <div className="app">
       {page === 'auth' && <AuthPage setPage={setPage} />}
-      {page === 'chat' && <ChatPage user={userData} setPage={setPage} profileLink={profileLink} />}
+      {page === 'chat' && <ChatPage user={userData} setPage={setPage} />}
       {page === 'addFriend' && <AddFriendPage user={userData} setPage={setPage} />}
-      {page === 'profile' && <ProfilePage user={userData} setPage={setPage} profileLink={profileLink} />}
+      {page === 'profile' && <ProfilePage user={userData} setPage={setPage} />}
     </div>
   );
 }
@@ -131,7 +119,6 @@ function AuthPage({ setPage }) {
       const tagSnap = await getDocs(tagQuery);
       if (tagSnap.empty) return tag;
     }
-    alert("Failed to generate unique tag. Try a new username?");
     return null;
   };
 
@@ -188,123 +175,120 @@ function AuthPage({ setPage }) {
   return (
     <div className="auth-container">
       <div className="auth-bg">
-        <div className="circle circle-1"></div>
-        <div className="circle circle-2"></div>
-        <div className="circle circle-3"></div>
+        <div className="gradient-blob blob-1"></div>
+        <div className="gradient-blob blob-2"></div>
+        <div className="gradient-blob blob-3"></div>
       </div>
+      
       <div className="auth-card">
         <div className="auth-header">
-          <div className="logo">
+          <div className="logo-wrapper">
             <div className="logo-icon">
-              <svg viewBox="0 0 100 100" className="logo-svg">
-                <circle cx="50" cy="50" r="45" fill="none" stroke="url(#gradient)" strokeWidth="6"/>
-                <circle cx="50" cy="25" r="8" fill="#60a5fa"/>
-                <circle cx="75" cy="50" r="8" fill="#818cf8"/>
-                <circle cx="50" cy="75" r="8" fill="#a78bfa"/>
-                <circle cx="25" cy="50" r="8" fill="#38bdf8"/>
-                <defs>
-                  <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#3b82f6"/>
-                    <stop offset="100%" stopColor="#8b5cf6"/>
-                  </linearGradient>
-                </defs>
-              </svg>
+              <div className="logo-inner">
+                <div className="logo-dot dot-1"></div>
+                <div className="logo-dot dot-2"></div>
+                <div className="logo-dot dot-3"></div>
+                <div className="logo-dot dot-4"></div>
+              </div>
             </div>
-            <span className="logo-text">MYCircle</span>
+            <h1 className="logo-title">Nexus</h1>
+            <p className="logo-subtitle">Connect with your circle</p>
           </div>
-          <p className="auth-subtitle">
-            {isLogin ? 'Welcome back to your circle!' : 'Join your circle today'}
-          </p>
         </div>
+
         <form onSubmit={handleSubmit} className="auth-form">
           {!isLogin && (
-            <div className="input-group">
-              <label>
-                <span className="label-icon">👤</span>
-                Username
-              </label>
+            <div className="input-field">
+              <div className="input-icon">👤</div>
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value.replace(/\s/g, ''))}
-                placeholder="Choose a unique username"
+                placeholder="Username"
                 required={!isLogin}
                 maxLength={20}
+                className="input-element"
               />
             </div>
           )}
-          <div className="input-group">
-            <label>
-              <span className="label-icon">✉️</span>
-              Email
-            </label>
+          
+          <div className="input-field">
+            <div className="input-icon">✉️</div>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
+              placeholder="Email"
               required
+              className="input-element"
             />
           </div>
-          <div className="input-group">
-            <label>
-              <span className="label-icon">🔒</span>
-              Password
-            </label>
+          
+          <div className="input-field">
+            <div className="input-icon">🔒</div>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
+              placeholder="Password"
               required
               minLength={6}
+              className="input-element"
             />
           </div>
-          {error && <div className="error-message">{error}</div>}
-          <button type="submit" className="btn-primary" disabled={loading}>
+
+          {error && <div className="error-alert">{error}</div>}
+
+          <button type="submit" className="auth-button" disabled={loading}>
             {loading ? (
-              <span className="btn-loading"></span>
+              <div className="button-loader"></div>
             ) : (
               <>
-                {isLogin ? 'Login' : 'Create Account'}
-                <span className="btn-icon">→</span>
+                {isLogin ? 'Sign In' : 'Create Account'}
+                <span className="button-arrow">→</span>
               </>
             )}
           </button>
         </form>
+
         <div className="auth-footer">
-          <p>
-            {isLogin ? "Don't have an account?" : "Already have an account? "}
+          <div className="toggle-mode">
+            {isLogin ? "Don't have an account?" : "Already have an account?"}
             <button 
-              className="link-btn"
+              className="toggle-button"
               onClick={() => {
                 setIsLogin(!isLogin);
                 setError('');
               }}
             >
-              {isLogin ? 'Sign Up' : 'Login'}
+              {isLogin ? 'Sign Up' : 'Sign In'}
             </button>
-          </p>
+          </div>
         </div>
       </div>
-      <p className="auth-credit">Made with 💙 in Malaysia</p>
+
+      <div className="auth-watermark">
+        <div className="watermark-line"></div>
+        <span>Designed with purpose</span>
+        <div className="watermark-line"></div>
+      </div>
     </div>
   );
 }
 
-function ChatPage({ user, setPage, profileLink }) {
+function ChatPage({ user, setPage }) {
   const [friends, setFriends] = useState([]);
   const [selectedChat, setSelectedChat] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
-  const [showSidebar, setShowSidebar] = useState(true);
-  const [editingNicknameId, setEditingNicknameId] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [editingNickname, setEditingNickname] = useState(null);
   const [nicknameInput, setNicknameInput] = useState('');
   const [groups, setGroups] = useState([]);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [groupName, setGroupName] = useState('');
   const [groupMembers, setGroupMembers] = useState([]);
-  const [showEmojiBox, setShowEmojiBox] = useState({ id: null });
+  const [emojiPicker, setEmojiPicker] = useState({ id: null });
   const [unreadMap, setUnreadMap] = useState({});
   const messagesEndRef = useRef(null);
 
@@ -475,12 +459,7 @@ function ChatPage({ user, setPage, profileLink }) {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const startEditingNickname = (friendId, currentNickname) => {
-    setEditingNicknameId(friendId); 
-    setNicknameInput(currentNickname || "");
-  };
-
-  const applyNickname = async (friendUid) => {
+  const updateNickname = async (friendUid) => {
     const friendsArr = Array.isArray(user.friends) ? user.friends : [];
     const newFriends = friendsArr.map(f => {
       const obj = typeof f === 'string' ? { userId: f, nickname: "" } : f;
@@ -488,7 +467,7 @@ function ChatPage({ user, setPage, profileLink }) {
       return obj;
     });
     await updateDoc(doc(db, 'users', user.uid), { friends: newFriends });
-    setEditingNicknameId(null);
+    setEditingNickname(null);
     setNicknameInput('');
   };
 
@@ -498,7 +477,7 @@ function ChatPage({ user, setPage, profileLink }) {
     setGroupMembers([user.uid]);
   };
 
-  const handleGroupMember = (uid) => {
+  const toggleGroupMember = (uid) => {
     setGroupMembers((members) => 
       members.includes(uid) ? members.filter(m => m !== uid) : [...members, uid]
     );
@@ -588,151 +567,111 @@ function ChatPage({ user, setPage, profileLink }) {
   ];
 
   return (
-    <div className="chat-container">
-      <div className={`sidebar ${showSidebar ? 'show' : ''}`}>
+    <div className="chat-app">
+      <div className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
-          <div className="logo-small">
-            <svg viewBox="0 0 100 100" className="logo-svg-small">
-              <circle cx="50" cy="50" r="45" fill="none" stroke="url(#gradient2)" strokeWidth="6"/>
-              <circle cx="50" cy="25" r="6" fill="#60a5fa"/>
-              <circle cx="75" cy="50" r="6" fill="#818cf8"/>
-              <circle cx="50" cy="75" r="6" fill="#a78bfa"/>
-              <circle cx="25" cy="50" r="6" fill="#38bdf8"/>
-              <defs>
-                <linearGradient id="gradient2" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#3b82f6"/>
-                  <stop offset="100%" stopColor="#8b5cf6"/>
-                </linearGradient>
-              </defs>
-            </svg>
-            <span>MYCircle</span>
+          <div className="app-brand">
+            <div className="brand-icon">
+              <div className="brand-dot"></div>
+              <div className="brand-dot"></div>
+              <div className="brand-dot"></div>
+              <div className="brand-dot"></div>
+            </div>
+            <h2>Nexus</h2>
           </div>
+          <button className="close-sidebar" onClick={() => setSidebarOpen(false)}>✕</button>
         </div>
-        <div className="user-profile" onClick={() => setPage('profile')}>
-          <img src={user?.avatar} alt="" className="avatar" />
-          <div className="user-details">
-            <h3>{user?.username}#{user?.tag}</h3>
-            <span className="status online">● Online</span>
+
+        <div className="user-profile-card" onClick={() => setPage('profile')}>
+          <img src={user?.avatar} alt="" className="profile-avatar" />
+          <div className="profile-info">
+            <h3>{user?.username}</h3>
+            <p className="user-tag">#{user?.tag}</p>
+            <span className="online-badge">● Online</span>
           </div>
-          <span className="profile-arrow">›</span>
+          <div className="profile-chevron">›</div>
         </div>
+
         <div className="sidebar-actions">
-          <button className="btn-add-friend" onClick={() => setPage('addFriend')}>
-            <span className="btn-add-icon">+</span>
+          <button className="action-button" onClick={() => setPage('addFriend')}>
+            <span className="action-icon">+</span>
             Add Friend
           </button>
-          <button className="btn-add-friend" style={{marginTop:"5px"}} onClick={openGroupModal}>
-            <span className="btn-add-icon">👥</span>
+          <button className="action-button secondary" onClick={openGroupModal}>
+            <span className="action-icon">👥</span>
             New Group
           </button>
-          <button
-            className="btn-add-friend"
-            style={{marginTop:"5px",background:"#fff",color:"#2563eb"}}
-            onClick={() => window.navigator.clipboard.writeText(profileLink)}
-            title="Copy your profile link"
-          >
-            <span className="btn-add-icon">🔗</span>
-            Copy Profile Link
-          </button>
         </div>
-        <div className="friends-section">
-          <h4>Chats <span className="friend-count">{sidebarItems.length}</span></h4>
-          <div className="friends-list">
+
+        <div className="chats-section">
+          <div className="section-header">
+            <h3>Conversations</h3>
+            <span className="badge">{sidebarItems.length}</span>
+          </div>
+          
+          <div className="chats-list">
             {sidebarItems.length === 0 ? (
-              <div className="no-friends">
-                <span className="no-friends-icon">👥</span>
-                <p>No chats or groups yet</p>
-                <span className="no-friends-hint">Start a conversation!</span>
+              <div className="empty-state">
+                <div className="empty-icon">💬</div>
+                <p>No conversations yet</p>
+                <small>Start by adding friends or creating a group</small>
               </div>
             ) : (
               sidebarItems.map(item => {
                 let unreadCount = 0;
                 if (item.isGroup) unreadCount = unreadMap[`group_${item.id}`] || 0;
                 else unreadCount = unreadMap[`chat_${item.uid}`] || 0;
+                
                 return (
                   <div
                     key={item.isGroup ? `group-${item.id}` : item.uid}
-                    className={`friend-item ${selectedChat && ((item.isGroup && selectedChat.id === item.id) || (!item.isGroup && selectedChat.uid === item.uid)) ? 'active' : ''}`}
+                    className={`chat-item ${selectedChat && ((item.isGroup && selectedChat.id === item.id) || (!item.isGroup && selectedChat.uid === item.uid)) ? 'active' : ''}`}
                     onClick={() => setSelectedChat(item)}
-                    style={item.isGroup ? {backgroundColor:"#3730a321"} : {}}
                   >
-                    <div className="friend-avatar-wrapper" style={{position:"relative"}}>
-                      <img src={item.avatar || "/default-group.png"} alt="" className="avatar-sm" />
-                      {unreadCount > 0 && (
-                        <span style={{
-                          position:"absolute",
-                          right:0,
-                          top:0,
-                          width:"14px",
-                          height:"14px",
-                          background:"#ef4444",
-                          borderRadius:"50%",
-                          display:"inline-block",
-                          fontSize:"0.80em",
-                          color:"#fff",
-                          fontWeight:"700",
-                          textAlign:"center",
-                          lineHeight:"14px",
-                          zIndex:10,
-                          boxShadow:"0 2px 7px #f003"
-                        }}>{unreadCount>99?"99+":unreadCount}</span>
-                      )}
-                      {item.isGroup 
-                        ? <span className="status-dot" style={{background:"#818cf8"}}></span>
-                        : <span className={`status-dot ${item.online ? 'online' : 'offline'}`}></span>
-                      }
-                    </div>
-                    <div className="friend-info">
+                    <div className="chat-avatar">
+                      <img src={item.avatar || "/default-group.png"} alt="" />
                       {item.isGroup ? (
-                        <span style={{fontWeight:600,color:"#8b5cf6"}}>{item.label}</span>
+                        <div className="status-indicator group"></div>
                       ) : (
-                        editingNicknameId === item.uid ? (
-                          <div style={{display:'flex', alignItems:'center', marginBottom:"2px"}}>
-                            <input
-                              value={nicknameInput}
-                              onChange={e => setNicknameInput(e.target.value)}
-                              placeholder="Enter custom name"
-                              style={{fontSize:"0.92em"}}
-                            />
-                            <button
-                              style={{marginLeft:'2px', fontSize:'1em'}}
-                              onClick={e => { e.stopPropagation(); applyNickname(item.uid); }}
-                            >✔</button>
-                            <button
-                              style={{marginLeft:'2px', fontSize:'1em'}}
-                              onClick={e => { e.stopPropagation(); setEditingNicknameId(null); }}
-                            >✗</button>
-                          </div>
-                        ) : (
-                          <>
-                            {item.nickname &&
-                              <span className="friend-nickname">{item.nickname}</span>
-                            }
-                            <span className="friend-name">{item.username}#{item.tag}</span>
-                            <button
-                              style={{
-                                marginLeft:"5px",fontSize:"0.85em",background:"none",border:"none",
-                                color:"#94a3b8",cursor:"pointer"
-                              }}
-                              title="Edit Nickname"
-                              onClick={e => { e.stopPropagation(); startEditingNickname(item.uid, item.nickname); }}
-                            >✏️</button>
-                            <button
-                              style={{
-                                marginLeft:"4px",fontSize:"0.89em",background:"none",border:"none",
-                                color:"#ef4444",cursor:"pointer"
-                              }}
-                              title="Remove Friend"
-                              onClick={e => { e.stopPropagation(); removeFriend(item.uid); }}
-                            >🗑️</button>
-                          </>
-                        )
+                        <div className={`status-indicator ${item.online ? 'online' : 'offline'}`}></div>
                       )}
-                      <span className={`friend-status ${item.isGroup ? "online" : (item.online ? 'online' : 'offline')}`}>
-                        {item.isGroup
-                          ? "Group"
-                          : item.online ? 'Online' : 'Offline'}
-                      </span>
+                      {unreadCount > 0 && (
+                        <div className="unread-badge">{unreadCount > 99 ? '99+' : unreadCount}</div>
+                      )}
+                    </div>
+                    
+                    <div className="chat-details">
+                      {item.isGroup ? (
+                        <div className="group-info">
+                          <h4>{item.label}</h4>
+                          <p className="group-label">Group</p>
+                        </div>
+                      ) : (
+                        <>
+                          {editingNickname === item.uid ? (
+                            <div className="nickname-edit">
+                              <input
+                                value={nicknameInput}
+                                onChange={e => setNicknameInput(e.target.value)}
+                                placeholder="Custom name"
+                                autoFocus
+                              />
+                              <button onClick={() => updateNickname(item.uid)}>✓</button>
+                              <button onClick={() => setEditingNickname(null)}>✕</button>
+                            </div>
+                          ) : (
+                            <div className="friend-info">
+                              {item.nickname && <span className="nickname">{item.nickname}</span>}
+                              <h4>{item.username}#{item.tag}</h4>
+                              <div className="friend-actions">
+                                <button onClick={(e) => { e.stopPropagation(); setEditingNickname(item.uid); setNicknameInput(item.nickname || ""); }}>✏️</button>
+                                <button onClick={(e) => { e.stopPropagation(); removeFriend(item.uid); }}>🗑️</button>
+                              </div>
+                            </div>
+                          )}
+                          <p className="status-text">{item.online ? 'Online' : 'Offline'}</p>
+                        </>
+                      )}
                     </div>
                   </div>
                 );
@@ -740,159 +679,133 @@ function ChatPage({ user, setPage, profileLink }) {
             )}
           </div>
         </div>
+
         <div className="sidebar-footer">
-          <button className="btn-logout" onClick={handleLogout}>
-            <span>🚪</span> Logout
+          <button className="logout-button" onClick={handleLogout}>
+            <span className="logout-icon">🚪</span>
+            Logout
           </button>
         </div>
       </div>
-      <div className="chat-area">
+
+      <div className="chat-main">
         {selectedChat ? (
           <>
             <div className="chat-header">
-              <button 
-                className="menu-btn mobile-only"
-                onClick={() => setShowSidebar(true)}
-              >
+              <button className="menu-toggle" onClick={() => setSidebarOpen(true)}>
                 ☰
               </button>
-              <div className="chat-header-user">
-                <div className="friend-avatar-wrapper">
-                  <img src={selectedChat.avatar || "/default-group.png"} alt="" className="avatar-sm" />
-                  <span className={`status-dot ${selectedChat.isGroup ? "online" : (selectedChat.online ? 'online' : 'offline')}`}></span>
+              
+              <div className="chat-info">
+                <div className="current-chat-avatar">
+                  <img src={selectedChat.avatar || "/default-group.png"} alt="" />
+                  <div className={`current-status ${selectedChat.isGroup ? 'group' : (selectedChat.online ? 'online' : 'offline')}`}></div>
                 </div>
-                <div>
+                
+                <div className="chat-meta">
                   {selectedChat.isGroup ? (
-                    <div style={{fontSize:"1.1em",fontWeight:700,color:"#8b5cf6"}}>{selectedChat.name}</div>
+                    <>
+                      <h2>{selectedChat.name}</h2>
+                      <p>Group • {selectedChat.members?.length || 0} members</p>
+                    </>
                   ) : (
                     <>
-                      {selectedChat.nickname && <div className="friend-nickname">{selectedChat.nickname}</div>}
-                      <h3>{selectedChat.username}#{selectedChat.tag}</h3>
+                      {selectedChat.nickname && <span className="current-nickname">{selectedChat.nickname}</span>}
+                      <h2>{selectedChat.username}#{selectedChat.tag}</h2>
+                      <p>{selectedChat.online ? '● Online' : '○ Last seen recently'}</p>
                     </>
                   )}
-                  <span className={`header-status ${selectedChat.isGroup ? "online" : (selectedChat.online ? 'online' : 'offline')}`}>
-                    {selectedChat.isGroup ? '• Group' : selectedChat.online ? '● Online' : '○ Offline'}
-                  </span>
-                  {selectedChat.isGroup && (
-                    <div style={{marginTop:"10px"}}>
-                      {selectedChat.createdBy === user.uid ? (
-                        <button className="btn-primary" style={{marginRight:"7px",background:"#ef4444"}} onClick={()=>deleteGroup(selectedChat.id)}>Delete Group</button>
-                      ) : (
-                        <button className="btn-primary" style={{background:"#2563eb"}} onClick={()=>leaveGroup(selectedChat.id)}>Leave Group</button>
-                      )}
-                    </div>
-                  )}
                 </div>
+                
+                {selectedChat.isGroup && (
+                  <div className="group-actions">
+                    {selectedChat.createdBy === user.uid ? (
+                      <button className="danger-button" onClick={() => deleteGroup(selectedChat.id)}>Delete</button>
+                    ) : (
+                      <button className="secondary-button" onClick={() => leaveGroup(selectedChat.id)}>Leave</button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
-            <div className="messages-container">
+
+            <div className="messages-area">
               {messages.length === 0 ? (
-                <div className="no-messages">
-                  <span className="wave-emoji">👋</span>
-                  <p>
-                    Say hello to{" "}
-                    {selectedChat.isGroup
-                      ? selectedChat.name
-                      : selectedChat.nickname
-                        ? `${selectedChat.nickname} (${selectedChat.username}#${selectedChat.tag})`
-                        : `${selectedChat.username}#${selectedChat.tag}`}
-                    !
-                  </p>
+                <div className="empty-chat">
+                  <div className="empty-chat-icon">👋</div>
+                  <h3>Start the conversation</h3>
+                  <p>Say hello to {selectedChat.isGroup ? selectedChat.name : selectedChat.username}!</p>
                 </div>
               ) : (
-                messages.map(msg => {
-                  const reactions = msg.reactions || {};
-                  return (
-                    <div
-                      key={msg.id}
-                      className={`message ${msg.senderId === user.uid ? 'sent' : 'received'}`}
-                    >
-                      <div className="message-bubble" style={{position:'relative'}}>
-                        <p>{msg.text}</p>
-                        <span className="message-time">{formatTime(msg.createdAt)}</span>
-                        {selectedChat.isGroup &&
-                          <span style={{
-                            fontSize:"0.8em",
-                            color:"#64748b",
-                            marginLeft:"7px"
-                          }}>{msg.senderName}{msg.senderId === user.uid && " (You)"}</span>
-                        }
-                        <div style={{display:"flex", gap:"5px", marginTop:4}}>
-                          {Object.keys(reactions).map(e => reactions[e]?.length ? (
-                            <span
-                              key={e}
-                              style={{
-                                background:"#e0e7ff",
-                                color:"#3730a3",
-                                borderRadius:"14px",
-                                padding:"2px 6px",
-                                fontSize:"1.02em",
-                                cursor:"pointer"
-                              }}
-                              onClick={() => handleReact(msg.id, e, reactions)}
-                              title={reactions[e].includes(user.uid) ? "Remove reaction" : "React"}
-                            >
-                              {e} {reactions[e].length}
-                            </span>
-                          ) : null)}
-                          <button
-                            onClick={() => setShowEmojiBox({ id: msg.id })}
-                            style={{
-                              fontSize:"1.06em",
-                              background:"none",
-                              border:"none",
-                              cursor:"pointer",
-                              color:"#a5b4fc"
-                            }}
-                          >😊</button>
-                        </div>
-                        {showEmojiBox.id === msg.id && (
-                          <div
-                            style={{
-                              position:"absolute",
-                              left:"0",top:"-45px",
-                              background:"#fff",
-                              border:"1px solid #ddd",
-                              borderRadius:"8px",
-                              padding:"3px 7px",
-                              display:"flex",
-                              gap:"6px",
-                              zIndex:11
-                            }}
-                          >
-                            {EMOJIS.map(e=>
-                              <span
-                                key={e}
-                                style={{
-                                  fontSize:"1.25em",
-                                  cursor:"pointer",
-                                  padding:"0 2px"
-                                }}
-                                onClick={()=>{
-                                  handleReact(msg.id, e, reactions);
-                                  setShowEmojiBox({id: null});
-                                }}
-                              >{e}</span>
+                <div className="messages-list">
+                  {messages.map(msg => {
+                    const reactions = msg.reactions || {};
+                    return (
+                      <div
+                        key={msg.id}
+                        className={`message-bubble ${msg.senderId === user.uid ? 'sent' : 'received'}`}
+                      >
+                        <div className="message-content">
+                          {selectedChat.isGroup && msg.senderId !== user.uid && (
+                            <div className="sender-name">{msg.senderName}</div>
+                          )}
+                          <div className="message-text">{msg.text}</div>
+                          <div className="message-footer">
+                            <span className="message-time">{formatTime(msg.createdAt)}</span>
+                            {Object.keys(reactions).length > 0 && (
+                              <div className="reactions-bar">
+                                {Object.entries(reactions).map(([emoji, users]) => (
+                                  users.length > 0 && (
+                                    <span
+                                      key={emoji}
+                                      className={`reaction ${users.includes(user.uid) ? 'active' : ''}`}
+                                      onClick={() => handleReact(msg.id, emoji, reactions)}
+                                    >
+                                      {emoji} {users.length}
+                                    </span>
+                                  )
+                                ))}
+                              </div>
                             )}
-                            <span style={{cursor:"pointer",color:"#64748b"}} onClick={()=>setShowEmojiBox({id: null})}>×</span>
                           </div>
-                        )}
+                        </div>
+                        <div className="message-actions">
+                          <button className="react-button" onClick={() => setEmojiPicker({ id: msg.id })}>😊</button>
+                          {emojiPicker.id === msg.id && (
+                            <div className="emoji-picker">
+                              {EMOJIS.map(emoji => (
+                                <span
+                                  key={emoji}
+                                  onClick={() => {
+                                    handleReact(msg.id, emoji, reactions);
+                                    setEmojiPicker({ id: null });
+                                  }}
+                                >
+                                  {emoji}
+                                </span>
+                              ))}
+                              <button onClick={() => setEmojiPicker({ id: null })}>✕</button>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )
-                })
+                    );
+                  })}
+                  <div ref={messagesEndRef} />
+                </div>
               )}
-              <div ref={messagesEndRef} />
             </div>
-            <form className="message-form" onSubmit={sendMessage}>
+
+            <form className="message-input-area" onSubmit={sendMessage}>
               <input
                 type="text"
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 placeholder={selectedChat.isGroup ? "Message group..." : "Type a message..."}
                 autoComplete="off"
+                className="message-input"
               />
-              <button type="submit" className="send-btn" disabled={!newMessage.trim()}>
+              <button type="submit" className="send-button" disabled={!newMessage.trim()}>
                 <svg viewBox="0 0 24 24" className="send-icon">
                   <path d="M2 21l21-9L2 3v7l15 2-15 2v7z" fill="currentColor"/>
                 </svg>
@@ -900,123 +813,77 @@ function ChatPage({ user, setPage, profileLink }) {
             </form>
           </>
         ) : (
-          <div className="no-chat">
-            <button 
-              className="menu-btn mobile-only"
-              onClick={() => setShowSidebar(true)}
-            >
+          <div className="no-chat-selected">
+            <button className="menu-toggle" onClick={() => setSidebarOpen(true)}>
               ☰
             </button>
-            <div className="no-chat-content">
-              <div className="no-chat-icon">
-                <svg viewBox="0 0 100 100" className="logo-svg-large">
-                  <circle cx="50" cy="50" r="45" fill="none" stroke="url(#gradient3)" strokeWidth="4"/>
-                  <circle cx="50" cy="25" r="8" fill="#60a5fa"/>
-                  <circle cx="75" cy="50" r="8" fill="#818cf8"/>
-                  <circle cx="50" cy="75" r="8" fill="#a78bfa"/>
-                  <circle cx="25" cy="50" r="8" fill="#38bdf8"/>
-                  <defs>
-                    <linearGradient id="gradient3" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#3b82f6"/>
-                      <stop offset="100%" stopColor="#8b5cf6"/>
-                    </linearGradient>
-                  </defs>
-                </svg>
+            <div className="welcome-screen">
+              <div className="welcome-icon">
+                <div className="welcome-dot"></div>
+                <div className="welcome-dot"></div>
+                <div className="welcome-dot"></div>
+                <div className="welcome-dot"></div>
               </div>
-              <h2>Welcome to MYCircle</h2>
-              <p>Select a chat or group to start messaging</p>
+              <h1>Welcome to Nexus</h1>
+              <p>Select a conversation or start a new one</p>
             </div>
           </div>
         )}
       </div>
+
       {showGroupModal && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 200,
-            backgroundColor: "rgba(20, 22, 45, 0.75)",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center"
-          }}
-        >
-          <form
-            style={{
-              background: "#1c1e2d",
-              borderRadius: 14,
-              padding: 24,
-              display: "flex",
-              flexDirection: "column",
-              minWidth: 300,
-              boxShadow: "0px 6px 32px #0002"
-            }}
-            onSubmit={createGroup}
-          >
-            <strong style={{ fontSize: "1.4em", marginBottom: 12 }}>Create Group</strong>
-            <label>Group Name</label>
-            <input
-              style={{
-                padding: 6,
-                fontSize: "1em",
-                margin: "4px 0 12px 0",
-                borderRadius: 6,
-                border: "1px solid #64748b"
-              }}
-              type="text"
-              value={groupName}
-              maxLength={32}
-              onChange={e => setGroupName(e.target.value)}
-              required
-            />
-            <label style={{ marginBottom: 4 }}>Add Friends</label>
-            <div style={{
-              maxHeight: 120,
-              overflowY: "auto",
-              background: "#22242c",
-              borderRadius: 6,
-              marginBottom: 10
-            }}>
-              {friends
-                .filter(f => f.uid !== user.uid)
-                .map(f => (
-                  <div key={f.uid} style={{ display: "flex", alignItems: "center", marginBottom: 4 }}>
-                    <input
-                      type="checkbox"
-                      checked={groupMembers.includes(f.uid)}
-                      onChange={() => handleGroupMember(f.uid)}
-                      id={`memberbox${f.uid}`}
-                    />
-                    <label htmlFor={`memberbox${f.uid}`} style={{ marginLeft: 7, cursor: "pointer" }}>
-                      {f.nickname ? f.nickname + " " : ""}
-                      {f.username}#{f.tag}
-                    </label>
-                  </div>
-                ))}
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>Create New Group</h2>
+              <button onClick={() => setShowGroupModal(false)}>✕</button>
             </div>
-            <button
-              className="btn-primary"
-              style={{margin:"10px 0 5px 0"}}
-              type="submit"
-              disabled={!groupName.trim() || groupMembers.length < 2}
-            >
-              Create
-            </button>
-            <button
-              style={{
-                background: "none",
-                color: "#fca5a5",
-                border: "none",
-                margin: "0 auto",
-                fontWeight: 600,
-                cursor: "pointer"
-              }}
-              type="button"
-              onClick={() => setShowGroupModal(false)}
-            >
-              Cancel
-            </button>
-          </form>
+            
+            <form onSubmit={createGroup}>
+              <div className="modal-input">
+                <label>Group Name</label>
+                <input
+                  type="text"
+                  value={groupName}
+                  onChange={e => setGroupName(e.target.value)}
+                  placeholder="Enter group name"
+                  maxLength={32}
+                  required
+                />
+              </div>
+              
+              <div className="modal-input">
+                <label>Add Members</label>
+                <div className="members-selector">
+                  {friends
+                    .filter(f => f.uid !== user.uid)
+                    .map(f => (
+                      <div key={f.uid} className="member-option">
+                        <input
+                          type="checkbox"
+                          checked={groupMembers.includes(f.uid)}
+                          onChange={() => toggleGroupMember(f.uid)}
+                          id={`member-${f.uid}`}
+                        />
+                        <label htmlFor={`member-${f.uid}`}>
+                          <img src={f.avatar} alt="" className="member-avatar" />
+                          <span>{f.nickname ? f.nickname : `${f.username}#${f.tag}`}</span>
+                        </label>
+                      </div>
+                    ))}
+                </div>
+              </div>
+              
+              <div className="modal-actions">
+                <button type="submit" className="primary-button" disabled={!groupName.trim() || groupMembers.length < 2}>
+                  Create Group
+                </button>
+                <button type="button" className="secondary-button" onClick={() => setShowGroupModal(false)}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
@@ -1031,16 +898,6 @@ function AddFriendPage({ user, setPage }) {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const uparam = params.get("u");
-    const tparam = params.get("t");
-    if (uparam && tparam) {
-      setSearchUsername(uparam);
-      setSearchTag(tparam);
-    }
-  }, []);
 
   const searchUser = async (e) => {
     if (e) e.preventDefault();
@@ -1059,20 +916,20 @@ function AddFriendPage({ user, setPage }) {
       const snapshot = await getDocs(q);
 
       if (snapshot.empty) {
-        setError('User not found. Check the username+tag and try again.');
+        setError('User not found. Check the username and tag combination.');
       } else {
         const foundUser = { uid: snapshot.docs[0].id, ...snapshot.docs[0].data() };
         const myFriends = Array.isArray(user.friends) ? user.friends.map(f => typeof f === "string" ? { userId: f, nickname: "" } : f) : [];
         if (foundUser.uid === user.uid) {
-          setError("That's you! Try searching for someone else.");
+          setError("You can't add yourself!");
         } else if (myFriends.some(f => f.userId === foundUser.uid)) {
-          setError(`${foundUser.username}#${foundUser.tag} is already in your circle!`);
+          setError("Already friends!");
         } else {
           setSearchResult(foundUser);
         }
       }
     } catch (err) {
-      setError('Something went wrong. Please try again.');
+      setError('Search failed. Please try again.');
     }
     setSearching(false);
   };
@@ -1089,101 +946,91 @@ function AddFriendPage({ user, setPage }) {
       await updateDoc(doc(db, 'users', searchResult.uid), {
         friends: [...theirFriends, { userId: user.uid, nickname: "" }]
       });
-      setSuccess(`${searchResult.username}#${searchResult.tag} added to your circle! 🎉`);
+      setSuccess("Friend added successfully!");
       setSearchResult(null);
       setSearchUsername('');
       setSearchTag('');
-      setTimeout(() => setPage('chat'), 2000);
+      setTimeout(() => setPage('chat'), 1500);
     } catch (err) {
-      setError('Failed to add friend. Please try again.');
+      setError('Failed to add friend.');
     }
     setLoading(false);
   };
 
   return (
-    <div className="add-friend-container">
-      <div className="add-friend-bg">
-        <div className="circle circle-1"></div>
-        <div className="circle circle-2"></div>
-      </div>
-      <div className="add-friend-card">
-        <button className="back-btn" onClick={() => setPage('chat')}>
-          ← Back to Chat
+    <div className="add-friend-page">
+      <div className="page-header">
+        <button className="back-button" onClick={() => setPage('chat')}>
+          ← Back
         </button>
-        <div className="add-friend-header">
-          <div className="add-friend-icon">👥</div>
-          <h2>Add to Circle</h2>
-          <p>Search by username and tag to add friends</p>
-        </div>
-        <form onSubmit={searchUser} className="search-form">
-          <div className="input-group">
-            <input
-              type="text"
-              value={searchUsername}
-              onChange={e => setSearchUsername(e.target.value.replace(/\s/g, ''))}
-              placeholder="Username"
-              required
-            />
-            <input
-              type="text"
-              value={searchTag}
-              onChange={e => setSearchTag(e.target.value.toUpperCase())}
-              placeholder="Tag (e.g. X1P5)"
-              required
-              maxLength={4}
-              style={{ width: "90px", textTransform: "uppercase" }}
-            />
-            <button type="submit" className="btn-primary" disabled={searching || !searchUsername.trim() || !searchTag.trim()}>
-              {searching ? '.. .' : 'Search'}
-            </button>
-          </div>
-        </form>
-        {error && (
-          <div className="message-box error">
-            <span>❌</span> {error}
-          </div>
-        )}
-        {success && (
-          <div className="message-box success">
-            <span>✅</span> {success}
-          </div>
-        )}
-        {searchResult && (
-          <div className="search-result">
-            <div className="result-card">
-              <img src={searchResult.avatar} alt="" className="result-avatar" />
-              <div className="result-info">
-                <h3>{searchResult.username}#{searchResult.tag}</h3>
-                <span className={`result-status ${searchResult.online ?  'online' : 'offline'}`}>
-                  {searchResult.online ? '● Online' : '○ Offline'}
-                </span>
-              </div>
+        <h1>Add Friend</h1>
+      </div>
+
+      <div className="search-section">
+        <div className="search-card">
+          <h2>Find Friends</h2>
+          <p>Search by username and tag</p>
+          
+          <form onSubmit={searchUser} className="search-form">
+            <div className="search-inputs">
+              <input
+                type="text"
+                value={searchUsername}
+                onChange={e => setSearchUsername(e.target.value.replace(/\s/g, ''))}
+                placeholder="Username"
+                required
+              />
+              <input
+                type="text"
+                value={searchTag}
+                onChange={e => setSearchTag(e.target.value.toUpperCase())}
+                placeholder="TAG"
+                required
+                maxLength={4}
+                className="tag-input"
+              />
+              <button type="submit" className="search-button" disabled={searching}>
+                {searching ? 'Searching...' : 'Search'}
+              </button>
             </div>
-            <button 
-              className="btn-primary btn-add"
-              onClick={addFriend}
-              disabled={loading}
-            >
-              {loading ? (
-                <span className="btn-loading"></span>
-              ) : (
-                <>
-                  <span>+</span> Add to Circle
-                </>
-              )}
-            </button>
+          </form>
+
+          {error && <div className="alert error">{error}</div>}
+          {success && <div className="alert success">{success}</div>}
+
+          {searchResult && (
+            <div className="result-card">
+              <div className="result-header">
+                <img src={searchResult.avatar} alt="" className="result-avatar" />
+                <div className="result-info">
+                  <h3>{searchResult.username}</h3>
+                  <p className="result-tag">#{searchResult.tag}</p>
+                  <span className={`status ${searchResult.online ? 'online' : 'offline'}`}>
+                    {searchResult.online ? '● Online' : '○ Offline'}
+                  </span>
+                </div>
+              </div>
+              <button 
+                className="add-button"
+                onClick={addFriend}
+                disabled={loading}
+              >
+                {loading ? 'Adding...' : 'Add Friend'}
+              </button>
+            </div>
+          )}
+
+          <div className="search-tip">
+            <span>💡</span>
+            <p>Ask your friend for their exact username and 4-digit tag</p>
           </div>
-        )}
-        <div className="add-friend-tip">
-          <span>💡</span>
-          <p>Ask your friend for their exact username and tag, or use their shareable profile link</p>
         </div>
       </div>
     </div>
   );
 }
 
-function ProfilePage({ user, setPage, profileLink }) {
+function ProfilePage({ user, setPage }) {
   const [usernameInput, setUsernameInput] = useState(user?.username || '');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -1238,92 +1085,96 @@ function ProfilePage({ user, setPage, profileLink }) {
   };
 
   return (
-    <div className="profile-container">
-      <div className="profile-bg">
-        <div className="circle circle-1"></div>
-        <div className="circle circle-2"></div>
-      </div>
-      <div className="profile-card">
-        <button className="back-btn" onClick={() => setPage('chat')}>
-          ← Back to Chat
+    <div className="profile-page">
+      <div className="page-header">
+        <button className="back-button" onClick={() => setPage('chat')}>
+          ← Back
         </button>
-        <div className="profile-header">
-          <div className="profile-avatar-wrapper">
-            <img src={user?.avatar} alt="" className="profile-avatar" />
-            <span className="profile-status-dot online"></span>
-          </div>
-          <form onSubmit={handleChangeUsername} style={{margin:"10px 0"}}>
-            <input
-              type="text"
-              value={usernameInput}
-              onChange={e => setUsernameInput(e.target.value.replace(/\s/g, ""))}
-              maxLength={20}
-              disabled={!canChangeUsername || loading}
-              style={{
-                textAlign: "center",
-                fontSize: "1.2rem",
-                margin: "8px 0",
-                fontWeight: 600,
-                background: "#1118",
-                color: "#fff",
-                border: "none",
-                borderBottom: "2px solid #64748b",
-                outline: "none",
-                borderRadius: 8,
-                width: "140px",
-              }}
-            />
-            <span style={{ fontWeight: 600 }}>#{user.tag}</span>
-            <button className="btn-primary" style={{margin:'8px 0'}} disabled={!canChangeUsername || loading}>
-              Change Username
-            </button>
-            {!canChangeUsername && (
-              <div style={{color: "#fca5a5", fontSize:"0.92em"}}>
-                Next change allowed after: {formatDate(lastChanged ? new Date(lastChanged.getTime() + 7*24*3600*1000) : null)}
+        <h1>Profile</h1>
+      </div>
+
+      <div className="profile-content">
+        <div className="profile-card">
+          <div className="profile-header">
+            <div className="avatar-container">
+              <img src={user?.avatar} alt="" className="profile-avatar-large" />
+              <div className="online-status">●</div>
+            </div>
+            
+            <form onSubmit={handleChangeUsername} className="username-form">
+              <div className="username-display">
+                <input
+                  type="text"
+                  value={usernameInput}
+                  onChange={e => setUsernameInput(e.target.value.replace(/\s/g, ""))}
+                  maxLength={20}
+                  disabled={!canChangeUsername || loading}
+                  className="username-input"
+                />
+                <span className="user-tag-large">#{user.tag}</span>
               </div>
-            )}
-            {error && <div className="error-message">{error}</div>}
-            {success && <div className="message-box success">{success}</div>}
-          </form>
-          <p className="profile-email">{user?.email}</p>
-          <button
-            className="btn-primary"
-            style={{marginTop:"10px",background:"#fff",color:"#2563eb"}}
-            onClick={() => window.navigator.clipboard.writeText(profileLink)}
-            title="Copy your shareable MYCircle profile link"
-          >
-            <span style={{marginRight:"5px"}}>🔗</span> Copy Your Profile Link
-          </button>
-          <div style={{color:"#64748b",fontSize:"0.97em",marginTop:"5px"}}>{profileLink}</div>
-        </div>
-        <div className="profile-stats">
-          <div className="stat-card">
-            <span className="stat-number">{user?.friends?.length || 0}</span>
-            <span className="stat-label">Friends</span>
+              
+              <button type="submit" className="update-button" disabled={!canChangeUsername || loading}>
+                {loading ? 'Updating...' : 'Update Username'}
+              </button>
+              
+              {!canChangeUsername && (
+                <p className="cooldown-notice">
+                  Next change available in {Math.ceil(7 - ((new Date() - lastChanged) / (1000 * 60 * 60 * 24)))} days
+                </p>
+              )}
+              
+              {error && <div className="alert error">{error}</div>}
+              {success && <div className="alert success">{success}</div>}
+            </form>
           </div>
-          <div className="stat-card">
-            <span className="stat-number">●</span>
-            <span className="stat-label">Online</span>
-          </div>
-        </div>
-        <div className="profile-info">
-          <div className="info-item">
-            <span className="info-icon">📅</span>
-            <div>
-              <span className="info-label">Joined</span>
-              <span className="info-value">{formatDate(user?.createdAt?.toDate?.())}</span>
+
+          <div className="profile-stats-grid">
+            <div className="stat-item">
+              <div className="stat-number">{user?.friends?.length || 0}</div>
+              <div className="stat-label">Friends</div>
+            </div>
+            <div className="stat-item">
+              <div className="stat-number">●</div>
+              <div className="stat-label">Status</div>
+            </div>
+            <div className="stat-item">
+              <div className="stat-number">
+                {new Date(user?.createdAt?.toDate?.()).getFullYear()}
+              </div>
+              <div className="stat-label">Joined</div>
             </div>
           </div>
-          <div className="info-item">
-            <span className="info-icon">🆔</span>
-            <div>
-              <span className="info-label">Username</span>
-              <span className="info-value">@{user?.username}#{user?.tag}</span>
+
+          <div className="profile-details">
+            <div className="detail-item">
+              <span className="detail-icon">✉️</span>
+              <div className="detail-content">
+                <div className="detail-label">Email</div>
+                <div className="detail-value">{user?.email}</div>
+              </div>
+            </div>
+            
+            <div className="detail-item">
+              <span className="detail-icon">📅</span>
+              <div className="detail-content">
+                <div className="detail-label">Member Since</div>
+                <div className="detail-value">{formatDate(user?.createdAt?.toDate?.())}</div>
+              </div>
+            </div>
+            
+            <div className="detail-item">
+              <span className="detail-icon">🆔</span>
+              <div className="detail-content">
+                <div className="detail-label">User ID</div>
+                <div className="detail-value">{user?.uid?.substring(0, 8)}...</div>
+              </div>
             </div>
           </div>
-        </div>
-        <div className="profile-footer">
-          <p>MYCircle • Made with 💙 in Malaysia</p>
+
+          <div className="profile-footer">
+            <p className="app-credit">Nexus • Modern Social Platform</p>
+          </div>
         </div>
       </div>
     </div>
