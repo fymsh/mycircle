@@ -17,9 +17,13 @@ import {
   addDoc,
   orderBy,
   serverTimestamp,
-  updateDoc
+  updateDoc,
+  updateDoc as updateFirestoreDoc,
+  getDoc as getFirestoreDoc
 } from 'firebase/firestore';
 import './App.css';
+
+const EMOJIS = ["😀", "😂", "👍", "😮", "😢", "❤️", "🔥"];
 
 function App() {
   const [user, setUser] = useState(null);
@@ -267,6 +271,7 @@ function ChatPage({ user, setPage }) {
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [groupName, setGroupName] = useState('');
   const [groupMembers, setGroupMembers] = useState([]);
+  const [reactingMsg, setReactingMsg] = useState(null);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -375,7 +380,8 @@ function ChatPage({ user, setPage }) {
         text: newMessage,
         senderId: user.uid,
         senderName: user.username,
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        reactions: {}
       });
     } else {
       const chatId = [user.uid, selectedChat.uid].sort().join('_');
@@ -384,7 +390,8 @@ function ChatPage({ user, setPage }) {
         text: newMessage,
         senderId: user.uid,
         senderName: user.username,
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        reactions: {}
       });
     }
     setNewMessage('');
@@ -445,6 +452,31 @@ function ChatPage({ user, setPage }) {
       createdBy: user.uid
     });
     setShowGroupModal(false);
+  };
+
+  const handleReact = async (msgId, emoji, alreadyReacted) => {
+    if (!selectedChat) return;
+    let coll, id;
+    if (selectedChat.isGroup) {
+      coll = collection(db, 'groups', selectedChat.id, 'messages');
+      id = selectedChat.id;
+    } else {
+      coll = collection(db, 'chats', [user.uid, selectedChat.uid].sort().join('_'), 'messages');
+      id = [user.uid, selectedChat.uid].sort().join('_');
+    }
+    const msgDoc = doc(coll, msgId);
+    const msgSnap = await getFirestoreDoc(msgDoc);
+    const msg = msgSnap.data();
+    let currentReactions = msg.reactions || {};
+    let updatedReactions = { ...currentReactions };
+
+    if (alreadyReacted) {
+      updatedReactions[emoji] = updatedReactions[emoji].filter(u => u !== user.uid);
+      if (updatedReactions[emoji].length === 0) delete updatedReactions[emoji];
+    } else {
+      updatedReactions[emoji] = updatedReactions[emoji] ? [...updatedReactions[emoji], user.uid] : [user.uid];
+    }
+    await updateFirestoreDoc(msgDoc, { reactions: updatedReactions });
   };
 
   const sidebarItems = [
@@ -623,12 +655,14 @@ function ChatPage({ user, setPage }) {
                   </p>
                 </div>
               ) : (
-                messages.map(msg => (
+                messages.map(msg => {
+                  const reactions = msg.reactions || {};
+                  return (
                   <div
                     key={msg.id}
                     className={`message ${msg.senderId === user.uid ? 'sent' : 'received'}`}
                   >
-                    <div className="message-bubble">
+                    <div className="message-bubble" style={{position:'relative'}}>
                       <p>{msg.text}</p>
                       <span className="message-time">{formatTime(msg.createdAt)}</span>
                       {selectedChat.isGroup &&
@@ -638,10 +672,69 @@ function ChatPage({ user, setPage }) {
                           marginLeft:"7px"
                         }}>{msg.senderName}{msg.senderId === user.uid && " (You)"}</span>
                       }
+                      <div style={{display:"flex", gap:"5px", marginTop:4}}>
+                        {Object.keys(reactions).map(e => reactions[e]?.length ? (
+                          <span
+                            key={e}
+                            style={{
+                              background:"#e0e7ff",
+                              color:"#3730a3",
+                              borderRadius:"14px",
+                              padding:"2px 6px",
+                              fontSize:"1.02em",
+                              cursor:"pointer"
+                            }}
+                            onClick={() => handleReact(msg.id, e, reactions[e].includes(user.uid))}
+                            title={reactions[e].includes(user.uid) ? "Remove reaction" : "React"}
+                          >
+                            {e} {reactions[e].length}
+                          </span>
+                        ) : null)}
+                        <button
+                          onClick={() => setReactingMsg(msg.id)}
+                          style={{
+                            fontSize:"1.06em",
+                            background:"none",
+                            border:"none",
+                            cursor:"pointer",
+                            color:"#a5b4fc"
+                          }}
+                        >😊</button>
+                      </div>
+                      {reactingMsg === msg.id && (
+                        <div
+                          style={{
+                            position:"absolute",
+                            left:"0",top:"-43px",
+                            background:"#fff",
+                            border:"1px solid #ddd",
+                            borderRadius:"8px",
+                            padding:"3px 7px",
+                            display:"flex",
+                            gap:"6px",
+                            zIndex:11
+                          }}
+                        >
+                          {EMOJIS.map(e=>
+                            <span
+                              key={e}
+                              style={{
+                                fontSize:"1.25em",
+                                cursor:"pointer",
+                                padding:"0 2px"
+                              }}
+                              onClick={()=>{
+                                handleReact(msg.id, e, msg.reactions?.[e]?.includes(user.uid));
+                                setReactingMsg(null)
+                              }}
+                            >{e}</span>
+                          )}
+                          <span style={{cursor:"pointer",color:"#64748b"}} onClick={()=>setReactingMsg(null)}>×</span>
+                        </div>
+                      )}
                     </div>
                   </div>
-                ))
-              )}
+                )})}
               <div ref={messagesEndRef} />
             </div>
             <form className="message-form" onSubmit={sendMessage}>
