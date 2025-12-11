@@ -17,13 +17,15 @@ import {
   addDoc,
   orderBy,
   serverTimestamp,
-  updateDoc,
-  updateDoc as updateFirestoreDoc,
-  getDoc as getFirestoreDoc
+  updateDoc
 } from 'firebase/firestore';
 import './App.css';
 
-const EMOJIS = ["😀", "😂", "👍", "😮", "😢", "❤️", "🔥"];
+function generateTagStr() {
+  return Array.from({ length: 4 }, () =>
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"[Math.floor(Math.random() * 36)]
+  ).join('');
+}
 
 function App() {
   const [user, setUser] = useState(null);
@@ -35,9 +37,33 @@ function App() {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         const userRef = doc(db, 'users', currentUser.uid);
-        const unsubUser = onSnapshot(userRef, (doc) => {
-          if (doc.exists()) {
-            setUserData({ uid: currentUser.uid, ...doc.data() });
+        const unsubUser = onSnapshot(userRef, async (docu) => {
+          if (docu.exists()) {
+            let d = docu.data();
+
+            // Auto-assign tag if missing (except developer)
+            if (!d.tag && !(d.username === 'fymm555' || d.email === 'fahimbovak@gmail.com')) {
+              let unique = false, finalTag = "";
+              for (let i = 0; i < 10 && !unique; i++) {
+                const candidate = generateTagStr();
+                const tagQuery = query(
+                  collection(db, 'users'),
+                  where('usernameLower', '==', d.usernameLower),
+                  where('tag', '==', candidate)
+                );
+                const tagSnap = await getDocs(tagQuery);
+                if (tagSnap.empty) {
+                  finalTag = candidate;
+                  unique = true;
+                }
+              }
+              if (unique) {
+                await updateDoc(userRef, { tag: finalTag });
+                d.tag = finalTag;
+              }
+            }
+
+            setUserData({ uid: currentUser.uid, ...d });
           }
         });
         setUser(currentUser);
@@ -88,9 +114,7 @@ function AuthPage({ setPage }) {
 
   const generateTag = async (username) => {
     for (let i = 0; i < 10; i++) {
-      const tag = Array.from({ length: 4 }, () =>
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"[Math.floor(Math.random() * 36)]
-      ).join('');
+      const tag = generateTagStr();
       const tagQuery = query(
         collection(db, 'users'),
         where('usernameLower', '==', username.toLowerCase()),
@@ -271,7 +295,6 @@ function ChatPage({ user, setPage }) {
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [groupName, setGroupName] = useState('');
   const [groupMembers, setGroupMembers] = useState([]);
-  const [reactingMsg, setReactingMsg] = useState(null);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -454,31 +477,6 @@ function ChatPage({ user, setPage }) {
     setShowGroupModal(false);
   };
 
-  const handleReact = async (msgId, emoji, alreadyReacted) => {
-    if (!selectedChat) return;
-    let coll, id;
-    if (selectedChat.isGroup) {
-      coll = collection(db, 'groups', selectedChat.id, 'messages');
-      id = selectedChat.id;
-    } else {
-      coll = collection(db, 'chats', [user.uid, selectedChat.uid].sort().join('_'), 'messages');
-      id = [user.uid, selectedChat.uid].sort().join('_');
-    }
-    const msgDoc = doc(coll, msgId);
-    const msgSnap = await getFirestoreDoc(msgDoc);
-    const msg = msgSnap.data();
-    let currentReactions = msg.reactions || {};
-    let updatedReactions = { ...currentReactions };
-
-    if (alreadyReacted) {
-      updatedReactions[emoji] = updatedReactions[emoji].filter(u => u !== user.uid);
-      if (updatedReactions[emoji].length === 0) delete updatedReactions[emoji];
-    } else {
-      updatedReactions[emoji] = updatedReactions[emoji] ? [...updatedReactions[emoji], user.uid] : [user.uid];
-    }
-    await updateFirestoreDoc(msgDoc, { reactions: updatedReactions });
-  };
-
   const sidebarItems = [
     ...groups.map(g => ({
       ...g,
@@ -655,14 +653,12 @@ function ChatPage({ user, setPage }) {
                   </p>
                 </div>
               ) : (
-                messages.map(msg => {
-                  const reactions = msg.reactions || {};
-                  return (
+                messages.map(msg => (
                   <div
                     key={msg.id}
                     className={`message ${msg.senderId === user.uid ? 'sent' : 'received'}`}
                   >
-                    <div className="message-bubble" style={{position:'relative'}}>
+                    <div className="message-bubble">
                       <p>{msg.text}</p>
                       <span className="message-time">{formatTime(msg.createdAt)}</span>
                       {selectedChat.isGroup &&
@@ -672,69 +668,10 @@ function ChatPage({ user, setPage }) {
                           marginLeft:"7px"
                         }}>{msg.senderName}{msg.senderId === user.uid && " (You)"}</span>
                       }
-                      <div style={{display:"flex", gap:"5px", marginTop:4}}>
-                        {Object.keys(reactions).map(e => reactions[e]?.length ? (
-                          <span
-                            key={e}
-                            style={{
-                              background:"#e0e7ff",
-                              color:"#3730a3",
-                              borderRadius:"14px",
-                              padding:"2px 6px",
-                              fontSize:"1.02em",
-                              cursor:"pointer"
-                            }}
-                            onClick={() => handleReact(msg.id, e, reactions[e].includes(user.uid))}
-                            title={reactions[e].includes(user.uid) ? "Remove reaction" : "React"}
-                          >
-                            {e} {reactions[e].length}
-                          </span>
-                        ) : null)}
-                        <button
-                          onClick={() => setReactingMsg(msg.id)}
-                          style={{
-                            fontSize:"1.06em",
-                            background:"none",
-                            border:"none",
-                            cursor:"pointer",
-                            color:"#a5b4fc"
-                          }}
-                        >😊</button>
-                      </div>
-                      {reactingMsg === msg.id && (
-                        <div
-                          style={{
-                            position:"absolute",
-                            left:"0",top:"-43px",
-                            background:"#fff",
-                            border:"1px solid #ddd",
-                            borderRadius:"8px",
-                            padding:"3px 7px",
-                            display:"flex",
-                            gap:"6px",
-                            zIndex:11
-                          }}
-                        >
-                          {EMOJIS.map(e=>
-                            <span
-                              key={e}
-                              style={{
-                                fontSize:"1.25em",
-                                cursor:"pointer",
-                                padding:"0 2px"
-                              }}
-                              onClick={()=>{
-                                handleReact(msg.id, e, msg.reactions?.[e]?.includes(user.uid));
-                                setReactingMsg(null)
-                              }}
-                            >{e}</span>
-                          )}
-                          <span style={{cursor:"pointer",color:"#64748b"}} onClick={()=>setReactingMsg(null)}>×</span>
-                        </div>
-                      )}
                     </div>
                   </div>
-                )})}
+                ))
+              )}
               <div ref={messagesEndRef} />
             </div>
             <form className="message-form" onSubmit={sendMessage}>
@@ -1027,14 +964,59 @@ function AddFriendPage({ user, setPage }) {
 }
 
 function ProfilePage({ user, setPage }) {
+  const [usernameInput, setUsernameInput] = useState(user?.username || '');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const lastChanged = user?.lastUsernameChange?.toDate?.() || null;
+  const canChangeUsername = (() => {
+    if (!lastChanged) return true;
+    const now = new Date();
+    const days = (now - lastChanged) / (1000 * 60 * 60 * 24);
+    return days >= 7;
+  })();
+
   const formatDate = (timestamp) => {
-    if (!timestamp?.toDate) return 'Unknown';
-    return timestamp.toDate().toLocaleDateString('en-MY', {
+    if (!timestamp?.toLocaleDateString) return 'Unknown';
+    return timestamp.toLocaleDateString('en-MY', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
     });
   };
+
+  const handleChangeUsername = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setLoading(true);
+    if (usernameInput.length < 3) {
+      setError('Username must be at least 3 characters');
+      setLoading(false);
+      return;
+    }
+    if (!canChangeUsername) {
+      setError('You can only change username once every 7 days.');
+      setLoading(false);
+      return;
+    }
+    const q = query(collection(db, "users"), where("usernameLower", "==", usernameInput.toLowerCase()), where("tag", "==", user.tag));
+    const snap = await getDocs(q);
+    if (!snap.empty && snap.docs[0].id !== user.uid) {
+      setError("Username already taken with current tag.");
+      setLoading(false);
+      return;
+    }
+    await updateDoc(doc(db, "users", user.uid), {
+      username: usernameInput,
+      usernameLower: usernameInput.toLowerCase(),
+      lastUsernameChange: serverTimestamp()
+    });
+    setSuccess("Username updated!");
+    setLoading(false);
+  };
+
   return (
     <div className="profile-container">
       <div className="profile-bg">
@@ -1050,7 +1032,39 @@ function ProfilePage({ user, setPage }) {
             <img src={user?.avatar} alt="" className="profile-avatar" />
             <span className="profile-status-dot online"></span>
           </div>
-          <h2>{user?.username}#{user?.tag}</h2>
+          <form onSubmit={handleChangeUsername} style={{margin:"10px 0"}}>
+            <input
+              type="text"
+              value={usernameInput}
+              onChange={e => setUsernameInput(e.target.value.replace(/\s/g, ""))}
+              maxLength={20}
+              disabled={!canChangeUsername || loading}
+              style={{
+                textAlign: "center",
+                fontSize: "1.2rem",
+                margin: "8px 0",
+                fontWeight: 600,
+                background: "#1118",
+                color: "#fff",
+                border: "none",
+                borderBottom: "2px solid #64748b",
+                outline: "none",
+                borderRadius: 8,
+                width: "140px",
+              }}
+            />
+            <span style={{ fontWeight: 600 }}>#{user.tag}</span>
+            <button className="btn-primary" style={{margin:'8px 0'}} disabled={!canChangeUsername || loading}>
+              Change Username
+            </button>
+            {!canChangeUsername && (
+              <div style={{color: "#fca5a5", fontSize:"0.92em"}}>
+                Next change allowed after: {formatDate(lastChanged ? new Date(lastChanged.getTime() + 7*24*3600*1000) : null)}
+              </div>
+            )}
+            {error && <div className="error-message">{error}</div>}
+            {success && <div className="message-box success">{success}</div>}
+          </form>
           <p className="profile-email">{user?.email}</p>
         </div>
         <div className="profile-stats">
@@ -1068,7 +1082,7 @@ function ProfilePage({ user, setPage }) {
             <span className="info-icon">📅</span>
             <div>
               <span className="info-label">Joined</span>
-              <span className="info-value">{formatDate(user?.createdAt)}</span>
+              <span className="info-value">{formatDate(user?.createdAt?.toDate?.())}</span>
             </div>
           </div>
           <div className="info-item">
