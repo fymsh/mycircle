@@ -605,7 +605,7 @@ function ChatPage({ user, setPage }) {
 
         <div className="chats-section">
           <div className="section-header">
-            <h3>Conversations</h3>
+            <h3>My Circles</h3>
             <span className="badge">{sidebarItems.length}</span>
           </div>
           
@@ -824,7 +824,7 @@ function ChatPage({ user, setPage }) {
                 <div className="welcome-dot"></div>
                 <div className="welcome-dot"></div>
               </div>
-              <h1>Welcome to Nexus</h1>
+              <h1>Welcome to MYCircle</h1>
               <p>Select a conversation or start a new one</p>
             </div>
           </div>
@@ -1173,7 +1173,7 @@ function ProfilePage({ user, setPage }) {
           </div>
 
           <div className="profile-footer">
-            <p className="app-credit">Nexus • Modern Social Platform</p>
+            <p className="app-credit">MYCircle • The circle that matters.</p>
           </div>
         </div>
       </div>
